@@ -17,15 +17,16 @@ if (!tpl.includes('__ENCRYPTED_PAYLOAD__')) {
 const b64 = Buffer.from(tpl, 'utf8').toString('base64');
 
 let builder = readFileSync(builderPath, 'utf8');
-const before = builder;
-builder = builder.replace(
-  /var ORDER_TEMPLATE_B64 = "[^"]*";/,
-  `var ORDER_TEMPLATE_B64 = "${b64}";`
-);
-if (builder === before) {
+if (!/var ORDER_TEMPLATE_B64 = "[^"]*";/.test(builder)) {
   console.error('ERROR: builder.html に  var ORDER_TEMPLATE_B64 = "...";  の行が見つかりません。');
   process.exit(1);
 }
+const before = builder;
+builder = builder.replace(
+  /var ORDER_TEMPLATE_B64 = "[^"]*";/,
+  () => `var ORDER_TEMPLATE_B64 = "${b64}";`
+);
+if (builder === before) { console.log('（テンプレートに変更なし）'); }
 writeFileSync(builderPath, builder);
 
 // index.html がまだ雛形（データ未取込）なら最新テンプレートで更新する。
