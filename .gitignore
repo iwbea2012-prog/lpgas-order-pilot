@@ -1,0 +1,10 @@
+# 実データは絶対にコミットしない
+*.csv
+!sample-data.csv
+
+# 生成物・作業ファイル
+index.local.html
+*.xlsx
+*.xls
+.DS_Store
+preview.html
