@@ -315,15 +315,17 @@ function renderOrder(body){
   body.appendChild(linesCard);
 
   var actCard=el('<div class="card"></div>');
-  var a1=el('<button class="btn ghost" type="button" style="margin-bottom:10px">注文書プレビュー / 印刷</button>');
-  a1.onclick=function(){ showPreview(false); };
-  var a2=el('<button class="btn ok" type="button">メールで送る</button>');
+  actCard.appendChild(el('<div class="muted" style="margin-bottom:10px">送信先（当社）：'+esc(DATA.recvEmail||'')+((DATA.org&&DATA.org.fax)?('　／　FAX '+esc(DATA.org.fax)):'')+'</div>'));
+  var a2=el('<button class="btn ok" type="button">注文を送る</button>');
   a2.disabled=!draft.lines.length;
-  a2.onclick=sendMail;
+  a2.onclick=sendOrder;
+  var a1=el('<button class="btn ghost" type="button" style="margin-top:10px">注文書プレビュー / 印刷</button>');
+  a1.onclick=function(){ showPreview(); };
   var a3=el('<button class="btn danger sm" type="button" style="margin-top:10px">この注文を破棄</button>');
   a3.onclick=function(){ if(confirm('入力中の明細を破棄しますか？')){ draft=newDraft(); render(); } };
-  actCard.appendChild(a1); actCard.appendChild(a2); actCard.appendChild(a3);
+  actCard.appendChild(a2); actCard.appendChild(a1); actCard.appendChild(a3);
   body.appendChild(actCard);
+  actCard.appendChild(el('<div class="muted" style="margin-top:9px">「注文を送る」を押すと端末の共有メニューが開きます。LINE・メール・SMSなど、使えるものを選んで送ってください。送った控えは「履歴」タブに残ります。</div>'));
 }
 
 function lineCard(l,i){
@@ -436,13 +438,15 @@ function showPreview(){
   ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
 }
 
-/* ---------- メール ---------- */
-function orderMailBody(o){
+/* ---------- 送信（共有）---------- */
+function orderShareText(o){
   var org=DATA.org||{};
   var L=[];
   L.push('━━━ 発注 ━━━');
   L.push('販売店 : '+(DATA.dealer||''));
   L.push('宛先   : '+(org.name||'岩谷産業㈱熊本支店'));
+  if(DATA.recvEmail) L.push('         メール '+DATA.recvEmail);
+  if(org.fax) L.push('         FAX '+org.fax);
   L.push('発注日 : '+fmtDate(o.orderDate));
   L.push('注文番号 : '+(o.orderNo||'（未設定）'));
   L.push('担当者 : '+(o.contact||''));
@@ -458,27 +462,48 @@ function orderMailBody(o){
   L.push('');
   L.push('合計金額 : '+money(draftTotalOf(o))+' 円');
   L.push('━━━━━━━━━━━━');
-  L.push('（このメールは発注アプリから作成されました）');
+  L.push('（発注アプリから作成）');
   return L.join('\n');
 }
 function draftTotalOf(o){ return o.lines.reduce(function(a,l){ var x=lineAmount(l); return a+(x||0); },0); }
-function sendMail(){
+function saveOrderToHistory(o, sent){
+  var rec={ id:uid(), ts:nowStamp(), orderDate:o.orderDate, orderNo:o.orderNo||autoOrderNo(o.orderDate),
+    contact:o.contact||'',
+    lines:o.lines.map(function(l){ var c=Object.assign({},l); delete c._hist; return c; }),
+    total:draftTotalOf(o), sent:!!sent, acked:false, note:'' };
+  var all=loadOrders(); all.unshift(rec); saveOrders(all);
+  return rec;
+}
+function copyText(text, okMsg){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){ alert(okMsg||'コピーしました。'); },
+      function(){ window.prompt('コピーして送ってください', text); });
+  } else { window.prompt('コピーして送ってください', text); }
+}
+async function shareText(title, text){
+  if(navigator.share){
+    try{ await navigator.share({ title:title, text:text }); return 'shared'; }
+    catch(e){ return (e && e.name==='AbortError') ? 'cancel' : 'error'; }
+  }
+  return 'nosupport';
+}
+async function sendOrder(){
   var o=draft;
   if(!o.lines.length) return;
-  var to=DATA.recvEmail||'';
-  var subj='【発注】'+(DATA.dealer||'')+' '+(o.orderNo||'（番号未設定）')+' '+fmtDate(o.orderDate);
-  var href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(orderMailBody(o));
-  // 履歴に控えを保存
-  var rec={ id:uid(), ts:nowStamp(), orderDate:o.orderDate, orderNo:o.orderNo||autoOrderNo(o.orderDate),
-    contact:o.contact||'', lines:JSON.parse(JSON.stringify(o.lines.map(function(l){ delete l._hist; return l; }))),
-    total:draftTotalOf(o), sent:true, acked:false, note:'' };
-  var all=loadOrders(); all.unshift(rec); saveOrders(all);
-  window.location.href=href;
-  setTimeout(function(){
-    if(confirm('メールアプリを開きました。送信が終わったらOKを押してください。\n（この注文は履歴に保存されました）')){
-      draft=newDraft(); TAB='history'; render();
-    } else { render(); }
-  }, 400);
+  if(!o.orderNo){ o.orderNo=autoOrderNo(o.orderDate); render(); }
+  var title='【発注】'+(DATA.dealer||'')+' '+o.orderNo+' '+fmtDate(o.orderDate);
+  var text=title+'\n\n'+orderShareText(o);
+  var r=await shareText(title, text);
+  if(r==='cancel'){ return; }                 // 中断：履歴に残さない
+  if(r==='shared'){
+    saveOrderToHistory(o, true);
+    draft=newDraft(); TAB='history'; render();
+    return;
+  }
+  // 共有非対応 / 失敗 → コピーして手動送信。履歴には「未送信」で保存
+  copyText(text, '共有メニューが使えないため、注文内容をコピーしました。\nLINEやSMSに貼り付けて送ってください。\n控えは「履歴」に保存しました（送れたら「送信した」にチェックを）。');
+  saveOrderToHistory(o, false);
+  draft=newDraft(); TAB='history'; render();
 }
 
 /* ================= 在庫 ================= */
@@ -658,13 +683,18 @@ function openOrderDetail(id){
     ov.remove(); TAB='order'; render();
   };
   sh.appendChild(again);
-  var remail=el('<button class="btn ok" type="button" style="margin-top:10px">メールをもう一度開く</button>');
-  remail.onclick=function(){
-    var to=DATA.recvEmail||'';
-    var subj='【発注】'+(DATA.dealer||'')+' '+(o.orderNo||'')+' '+fmtDate(o.orderDate);
-    window.location.href='mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(orderMailBody(o));
+  var resend=el('<button class="btn ok" type="button" style="margin-top:10px">もう一度送る（共有）</button>');
+  resend.onclick=async function(){
+    var title='【発注】'+(DATA.dealer||'')+' '+(o.orderNo||'')+' '+fmtDate(o.orderDate);
+    var text=title+'\n\n'+orderShareText(o);
+    var r=await shareText(title, text);
+    if(r==='shared'){ o.sent=true; saveOrders(all); ov.remove(); render(); }
+    else if(r==='nosupport'||r==='error'){ copyText(text, '共有が使えないため、コピーしました。貼り付けて送ってください。'); }
   };
-  sh.appendChild(remail);
+  sh.appendChild(resend);
+  var copyb=el('<button class="btn ghost" type="button" style="margin-top:10px">文面をコピー</button>');
+  copyb.onclick=function(){ copyText('【発注】'+(DATA.dealer||'')+' '+(o.orderNo||'')+' '+fmtDate(o.orderDate)+'\n\n'+orderShareText(o), 'コピーしました。'); };
+  sh.appendChild(copyb);
   var del=el('<button class="btn danger sm" type="button" style="margin-top:12px">この控えを削除</button>');
   del.onclick=function(){ if(confirm('この発注控えを削除しますか？')){ saveOrders(all.filter(function(x){return x.id!==id;})); ov.remove(); render(); } };
   sh.appendChild(del);
