@@ -354,8 +354,15 @@ function renderOrder(body){
   var a3=el('<button class="btn danger sm" type="button" style="margin-top:10px">この注文を破棄</button>');
   a3.onclick=function(){ if(confirm('入力中の明細を破棄しますか？')){ draft=newDraft(); render(); } };
   actCard.appendChild(a2); actCard.appendChild(a1); actCard.appendChild(a3);
+  if(DATA.lineAddUrl){
+    var la=el('<button class="btn ghost" type="button" style="margin-top:10px">LINE公式アカウントを友だち追加</button>');
+    la.onclick=function(){ window.open(DATA.lineAddUrl, '_blank'); };
+    actCard.appendChild(la);
+  }
   body.appendChild(actCard);
-  actCard.appendChild(el('<div class="muted" style="margin-top:9px">「注文を送る」を押すと端末の共有メニューが開きます。LINE・メール・SMSなど、使えるものを選んで送ってください。送った控えは「履歴」タブに残ります。</div>'));
+  var hint='「注文を送る」を押すと端末の共有メニューが開きます。使えるものを選んで送ってください。送った控えは「履歴」タブに残ります。';
+  if(DATA.lineOaName){ hint+='<br><b>LINEを選ぶ場合は「'+esc(DATA.lineOaName)+'」（公式アカウント）に送ってください。個人LINEには送らないでください。</b>'; }
+  actCard.appendChild(el('<div class="muted" style="margin-top:9px">'+hint+'</div>'));
 }
 
 function lineCard(l,i){
