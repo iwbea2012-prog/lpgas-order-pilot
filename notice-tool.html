@@ -44,13 +44,15 @@
   ol.mini{margin:6px 0 0 18px;padding:0;font-size:13px}
   ol.mini li{margin:3px 0}
   .empty{color:var(--muted);text-align:center;padding:16px;font-size:13.5px}
+  .warnbox{background:#fdeceb;color:var(--warn);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
+  .okbox{background:#e7f2ec;color:var(--ok);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>お知らせ更新ツール</h1>
-  <p class="lead">今ある <code>index.html</code> を読み込んで、<b>お知らせだけ</b>を追加・編集・削除できます。CSVは不要です。カタログや在庫データには触れません。<br>
-  この画面はネット通信をしません。中身はこのブラウザの中だけで処理されます。</p>
+  <p class="lead">今ある <code>index.html</code> を読み込んで、<b>お知らせだけ</b>を追加・編集・削除できます。CSVは不要です。カタログ・在庫データ・見積もりには触れません。<br>
+  中身の処理はこのブラウザの中だけで行います。書き出す直前だけ、他の人の変更を取りこぼさないよう公開中の index.html を確認しに行きます。</p>
 
   <div class="step">
     <h2><span class="n">1</span> 今の index.html を読み込む</h2>
@@ -85,7 +87,8 @@
       <input type="text" id="pw2new" placeholder="もう一度" autocomplete="off">
     </div>
     <div class="muted" id="pwHint" style="margin-bottom:10px">— </div>
-    <button class="go" id="genBtn">index.html を書き出してダウンロード</button>
+    <button class="go" id="genBtn">最新版と統合して index.html を書き出す</button>
+    <div id="mergeInfo"></div>
     <div class="done" id="done">
       <b>✅ index.html を書き出しました。</b>
       <ol class="mini">
@@ -126,15 +129,22 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){ret
 function fmtDate(d){ if(!d) return '—'; var p=String(d).split('-'); return p.length===3?(p[0]+'/'+p[1]+'/'+p[2]):String(d); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function extractPayloadBlob(htmlText){
+  var m=htmlText.match(/<script id="payload"[^>]*>([\s\S]*?)<\/script>/);
+  if(!m) return null;
+  try{ var b=JSON.parse(m[1]); return (b&&b.ct&&b.salt&&b.iv)?b:null; }catch(e){ return null; }
+}
 
 var HTML_TEXT=null, PAYLOAD=null, PASS=null;
+var sessionAdded=[];    // このセッションで追加したお知らせ
+var sessionDeleted=[];  // このセッションで削除した「既存」お知らせのid
 
 var drop=document.getElementById('drop'), fileInput=document.getElementById('file'), loadinfo=document.getElementById('loadinfo'),
     pwEl=document.getElementById('pw'), openBtn=document.getElementById('openBtn'), openErr=document.getElementById('openErr'),
     editStep=document.getElementById('editStep'), dealerInfo=document.getElementById('dealerInfo'), nlist=document.getElementById('nlist'),
     nDate=document.getElementById('nDate'), nTitle=document.getElementById('nTitle'), nBody=document.getElementById('nBody'), nImportant=document.getElementById('nImportant'),
     addBtn=document.getElementById('addBtn'), genStep=document.getElementById('genStep'),
-    pw1new=document.getElementById('pw1new'), pw2new=document.getElementById('pw2new'), pwHint=document.getElementById('pwHint'),
+    pw1new=document.getElementById('pw1new'), pw2new=document.getElementById('pw2new'), pwHint=document.getElementById('pwHint'), mergeInfo=document.getElementById('mergeInfo'),
     genBtn=document.getElementById('genBtn'), doneEl=document.getElementById('done');
 
 nDate.value=todayISO();
@@ -166,6 +176,7 @@ openBtn.onclick=async function(){
     PAYLOAD=await decryptBlob(window._BLOB, pwEl.value);
     PASS=pwEl.value;
     if(!Array.isArray(PAYLOAD.notices)) PAYLOAD.notices=[];
+    sessionAdded=[]; sessionDeleted=[];
     dealerInfo.textContent='会社名：'+(PAYLOAD.dealer||'（不明）')+' ／ カタログ '+(PAYLOAD.catalog||[]).length+' 件 ／ 既存のお知らせ '+PAYLOAD.notices.length+' 件';
     drawNotices();
     editStep.style.display=''; genStep.style.display='';
@@ -176,20 +187,27 @@ openBtn.onclick=async function(){
   }
 };
 
+function currentNoticesView(){
+  var base=(PAYLOAD.notices||[]).filter(function(n){ return sessionDeleted.indexOf(n.id)<0; });
+  return base.concat(sessionAdded).sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; });
+}
+
 function drawNotices(){
-  var list=(PAYLOAD.notices||[]).slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; });
+  var list=currentNoticesView();
   nlist.innerHTML='';
   if(!list.length){ nlist.appendChild(document.createTextNode('')); var e=document.createElement('div'); e.className='empty'; e.textContent='お知らせはまだありません'; nlist.appendChild(e); return; }
   list.forEach(function(n){
+    var isNew=sessionAdded.some(function(x){ return x.id===n.id; });
     var it=document.createElement('div');
     it.className='nitem'+(n.important?' important':'');
-    it.innerHTML='<div class="nh"><span>'+fmtDate(n.date)+(n.important?' <span class="pill">重要</span>':'')+'</span></div>'+
+    it.innerHTML='<div class="nh"><span>'+fmtDate(n.date)+(n.important?' <span class="pill">重要</span>':'')+(isNew?' <span class="pill" style="background:#dff3e6;color:var(--ok)">今回追加</span>':'')+'</span></div>'+
       '<div class="nt">'+esc(n.title||'')+'</div><div class="nb">'+esc(n.body||'')+'</div>';
     var del=document.createElement('button');
     del.className='danger'; del.textContent='削除'; del.style.marginTop='8px';
     del.onclick=function(){
       if(!confirm('このお知らせを削除しますか？')) return;
-      PAYLOAD.notices=PAYLOAD.notices.filter(function(x){ return x.id!==n.id; });
+      if(isNew){ sessionAdded=sessionAdded.filter(function(x){ return x.id!==n.id; }); }
+      else { sessionDeleted.push(n.id); }
       drawNotices();
     };
     it.appendChild(del);
@@ -199,7 +217,7 @@ function drawNotices(){
 
 addBtn.onclick=function(){
   if(!nTitle.value.trim() && !nBody.value.trim()){ alert('タイトルか本文のどちらかは入れてください。'); return; }
-  PAYLOAD.notices.push({ id:uid(), date:nDate.value||todayISO(), title:nTitle.value.trim(), body:nBody.value.trim(), important:!!nImportant.checked });
+  sessionAdded.push({ id:uid(), date:nDate.value||todayISO(), title:nTitle.value.trim(), body:nBody.value.trim(), important:!!nImportant.checked });
   nTitle.value=''; nBody.value=''; nImportant.checked=false; nDate.value=todayISO();
   drawNotices();
 };
@@ -223,10 +241,46 @@ genBtn.onclick=async function(){
     var sc=scorePw(pw1new.value);
     if(!sc.ok){ alert(sc.msg); return; }
   }
-  genBtn.disabled=true; genBtn.textContent='書き出し中…';
+  genBtn.disabled=true; genBtn.textContent='公開中の版を確認しています…'; mergeInfo.innerHTML='';
+
+  // 競合対策：書き出す直前に公開中の index.html を取りに行き、
+  // 自分がこのツールで触っていない項目（カタログ・見積もり等）は最新をそのまま採用し、
+  // お知らせだけ自分の変更（追加・削除）を重ねる。
+  var basePayload=PAYLOAD, mergeNote='';
   try{
+    var res=await fetch('index.html', { cache:'no-store' });
+    if(res.ok){
+      var liveText=await res.text();
+      var liveBlob=extractPayloadBlob(liveText);
+      if(liveBlob){
+        var livePayload=await decryptBlob(liveBlob, PASS);
+        basePayload=livePayload;
+        var liveCount=(livePayload.notices||[]).length, myCount=(PAYLOAD.notices||[]).length;
+        mergeNote = (liveCount!==myCount)
+          ? '<div class="okbox">✓ 公開中の最新版を確認しました（お知らせ '+liveCount+' 件）。他の変更点も含めて統合します。</div>'
+          : '<div class="okbox">✓ 公開中の最新版を確認しました。変更はありませんでした。</div>';
+      } else {
+        mergeNote='<div class="warnbox">⚠ 公開中の index.html を認識できず、最新版との統合はできませんでした。読み込んだ時点の内容で書き出します。</div>';
+      }
+    } else {
+      mergeNote='<div class="warnbox">⚠ 公開中の index.html を取得できませんでした（HTTP '+res.status+'）。読み込んだ時点の内容で書き出します。</div>';
+    }
+  }catch(e){
+    mergeNote='<div class="warnbox">⚠ 通信できなかったため、最新版との統合はできませんでした（オフライン、または合言葉が変わっている可能性）。読み込んだ時点の内容で書き出します。</div>';
+  }
+  mergeInfo.innerHTML=mergeNote;
+
+  genBtn.textContent='書き出し中…';
+  try{
+    var finalPayload=JSON.parse(JSON.stringify(basePayload));
+    if(!Array.isArray(finalPayload.notices)) finalPayload.notices=[];
+    finalPayload.notices=finalPayload.notices.filter(function(n){ return sessionDeleted.indexOf(n.id)<0; });
+    sessionAdded.forEach(function(n){
+      if(!finalPayload.notices.some(function(x){ return x.id===n.id; })) finalPayload.notices.push(n);
+    });
+
     var usePass=pw1new.value ? pw1new.value : PASS;
-    var blob=await encryptPayload(PAYLOAD, usePass);
+    var blob=await encryptPayload(finalPayload, usePass);
     var html=HTML_TEXT.replace(/<script id="payload"[^>]*>[\s\S]*?<\/script>/,
       '<script id="payload" type="application/json">'+JSON.stringify(blob)+'<\/script>');
     var out=new Blob([html],{type:'text/html'});
@@ -238,7 +292,7 @@ genBtn.onclick=async function(){
   }catch(e){
     alert('書き出しに失敗しました：'+e.message);
   }
-  genBtn.textContent='index.html を書き出してダウンロード';
+  genBtn.textContent='最新版と統合して index.html を書き出す';
   genBtn.disabled=false;
 };
 })();

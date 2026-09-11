@@ -8,3 +8,8 @@ index.local.html
 *.xls
 .DS_Store
 preview.html
+
+# 見積もりファイル（quote-tool.html で quotes/ 配下に意図的にアップロードするもの）は対象外
+!quotes/*.xlsx
+!quotes/*.xls
+!quotes/*.pdf

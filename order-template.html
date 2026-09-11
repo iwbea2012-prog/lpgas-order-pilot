@@ -699,16 +699,33 @@ function quoteFileBlob(q){
   for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
   return new Blob([u], { type:q.fileType||'application/octet-stream' });
 }
-function openQuoteFile(q){
-  if(!q.fileData){ alert('ファイルが添付されていません。'); return; }
-  var blob=quoteFileBlob(q);
-  var url=URL.createObjectURL(blob);
+function openBlobUrl(url, fileName){
   var w=window.open(url, '_blank');
   if(!w){
-    var a=document.createElement('a'); a.href=url; a.download=q.fileName||('見積書_'+(q.date||'')+'.pdf');
+    var a=document.createElement('a'); a.href=url; a.download=fileName||'file';
     document.body.appendChild(a); a.click(); a.remove();
   }
   setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
+}
+async function openQuoteFile(q){
+  // 新形式：見積もりファイルは別ファイル（quotes/ 配下）に置き、取得は都度ネットから
+  if(q.filePath){
+    try{
+      var res=await fetch(q.filePath, { cache:'no-store' });
+      if(!res.ok) throw new Error('http '+res.status);
+      var blob=await res.blob();
+      openBlobUrl(URL.createObjectURL(blob), q.fileName||('見積書_'+(q.date||'')+'.pdf'));
+    }catch(e){
+      alert('見積もりファイルを取得できませんでした。通信状態の良い場所でもう一度お試しください。');
+    }
+    return;
+  }
+  // 旧形式：index.html にファイルそのものが埋め込まれている場合（後方互換）
+  if(q.fileData){
+    openBlobUrl(URL.createObjectURL(quoteFileBlob(q)), q.fileName||('見積書_'+(q.date||'')+'.pdf'));
+    return;
+  }
+  alert('ファイルが添付されていません。');
 }
 function addQuoteLinesToDraft(q){
   if(!draft) draft=newDraft();
