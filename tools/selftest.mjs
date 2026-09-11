@@ -236,7 +236,11 @@ assert.ok(Array.isArray(gy20.h), '履歴配列がある');
 /* ================= 4) 暗号ラウンドトリップ ＋ テンプレ埋め込み ================= */
 const full = Object.assign({}, payload, {
   dealer:'株式会社青山商店', orderPrefix:'AOYAMA', recvEmail:'toga.daisuke@iwatani.co.jp',
-  org:{ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' }
+  org:{ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' },
+  notices:[
+    { id:'n1', date:'2026-09-10', title:'テスト用お知らせ', body:'本文テスト。', important:true },
+    { id:'n2', date:'2026-08-01', title:'過去のお知らせ', body:'古い方。', important:false }
+  ]
 });
 const pass='あおやま ガス 発注 えんぴつ 2026';
 const blob=await encryptPayload(full, pass);

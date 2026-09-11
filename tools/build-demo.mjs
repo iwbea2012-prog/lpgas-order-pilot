@@ -73,7 +73,11 @@ groups.forEach((a,key)=>{
 });
 catalog.sort((a,b)=> a.nm.localeCompare(b.nm,'ja')||a.kt.localeCompare(b.kt,'ja'));
 
-const payload={ v:1, builtAt:base, months:MONTHS, catalog,
+const notices=[
+  { id:'demo-n1', date:'2026-09-10', title:'発注アプリをリニューアルしました', body:'注文書PDFの自動作成、期間指定での購入履歴の一覧表示、このお知らせ機能を追加しました。ご不明点は担当までご連絡ください。', important:false },
+  { id:'demo-n2', date:'2026-08-25', title:'年末年始の配送スケジュールについて（例）', body:'12/29〜1/3は休業します。年末のご注文はお早めにお願いします。', important:true },
+];
+const payload={ v:1, builtAt:base, months:MONTHS, catalog, notices,
   dealer:'株式会社青山商店（デモ）', orderPrefix:'AOYAMA', recvEmail:'toga.daisuke@iwatani.co.jp',
   org:{ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' } };
 

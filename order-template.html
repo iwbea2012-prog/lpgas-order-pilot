@@ -40,8 +40,17 @@
     flex:1;background:none;border:0;padding:9px 4px 8px;font-size:11px;color:var(--muted);
     cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:600;
   }
-  nav.tabs button .ic{font-size:19px;line-height:1}
+  nav.tabs button .ic{font-size:19px;line-height:1;position:relative}
   nav.tabs button.on{color:var(--accent)}
+  nav.tabs button .tbadge{background:var(--danger);color:#fff;border-radius:999px;font-size:9px;font-weight:800;
+    padding:1px 5px;position:absolute;top:-4px;left:calc(50% + 4px);white-space:nowrap}
+  .notice{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+  .notice.important{border-color:#e3a29c;background:#fdf1f0}
+  .notice .ndate{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .notice .ntitle{font-weight:700;font-size:14.5px;margin:3px 0 6px}
+  .notice.important .ntitle{color:var(--danger)}
+  .notice .nbody{font-size:13px;white-space:pre-wrap;line-height:1.6}
+  .pill.important{background:#fde3e0;color:var(--danger)}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
   .card h2{font-size:14px;margin:0 0 10px}
   .sec{font-size:12px;font-weight:700;color:var(--muted);margin:16px 2px 8px;letter-spacing:.02em}
@@ -130,6 +139,7 @@
 <div class="wrap" id="app"></div>
 <nav class="tabs" id="tabbar" style="display:none">
   <button data-tab="order"><span class="ic">📝</span>発注</button>
+  <button data-tab="notice"><span class="ic">📣<span class="tbadge" id="noticeBadge" style="display:none"></span></span>お知らせ</button>
   <button data-tab="period"><span class="ic">📅</span>期間</button>
   <button data-tab="stock"><span class="ic">📦</span>在庫</button>
   <button data-tab="history"><span class="ic">🗂</span>履歴</button>
@@ -225,6 +235,7 @@ function indexData(){
     c._s=normKana([c.nm,c.kt,c.mk].join(' '));
     return c;
   });
+  if(unreadNoticeCount()>0) TAB='notice';
 }
 
 /* ---------- stock ---------- */
@@ -287,11 +298,18 @@ function shell(){
     b.classList.toggle('on', b.dataset.tab===TAB);
     b.onclick=function(){ TAB=b.dataset.tab; render(); };
   });
+  var nb=document.getElementById('noticeBadge');
+  if(nb){
+    var unread=unreadNoticeCount();
+    if(unread>0){ nb.textContent=String(unread>99?'99+':unread); nb.style.display='inline-block'; }
+    else { nb.style.display='none'; }
+  }
   return body;
 }
 function render(){
   var body=shell();
   if(TAB==='order') renderOrder(body);
+  else if(TAB==='notice') renderNotice(body);
   else if(TAB==='period') renderPeriod(body);
   else if(TAB==='stock') renderStock(body);
   else renderHistory(body);
@@ -627,6 +645,35 @@ async function sendOrder(){
   copyText(text, (pdf?'注文書PDFを保存しました。\n':'')+'注文内容をコピーしました。LINEやSMSに貼り付け、PDFも一緒に送ってください。\n控えは「履歴」に保存しました。');
   saveOrderToHistory(o, false);
   draft=newDraft(); TAB='history'; render();
+}
+
+/* ================= お知らせ ================= */
+function noticeReadIds(){ return lsGet('lop.noticeRead', []); }
+function sortedNotices(){
+  return (DATA.notices||[]).slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; });
+}
+function unreadNoticeCount(){
+  var read=noticeReadIds();
+  return sortedNotices().filter(function(n){ return read.indexOf(n.id)<0; }).length;
+}
+function renderNotice(body){
+  var list=sortedNotices();
+  body.appendChild(el('<div class="card"><h2>お知らせ</h2><div class="muted">当社からの連絡事項です。新しい順に表示しています。</div></div>'));
+  if(!list.length){
+    body.appendChild(el('<div class="empty">お知らせはまだありません</div>'));
+  } else {
+    list.forEach(function(n){
+      var it=el('<div class="notice'+(n.important?' important':'')+'"></div>');
+      it.appendChild(el('<div class="ndate">'+fmtDate(n.date)+(n.important?'<span class="pill important">重要</span>':'')+'</div>'));
+      it.appendChild(el('<div class="ntitle">'+esc(n.title||'')+'</div>'));
+      var b=el('<div class="nbody"></div>'); b.textContent=n.body||''; it.appendChild(b);
+      body.appendChild(it);
+    });
+  }
+  // このタブを開いたら既読にする（バッジは次回描画で消える）
+  var read=noticeReadIds(), changed=false;
+  list.forEach(function(n){ if(read.indexOf(n.id)<0){ read.push(n.id); changed=true; } });
+  if(changed) lsSet('lop.noticeRead', read);
 }
 
 /* ================= 期間 ================= */
