@@ -69,7 +69,7 @@ function aggregate(text, map, months, base){
   const col={}; Object.keys(map).forEach(k=>{ col[k]= map[k]? headers.indexOf(map[k]) : -1; });
   const cut=new Date(base); cut.setMonth(cut.getMonth()-months);
   const cutISO=cut.toISOString().slice(0,10);
-  const groups=new Map(); const custSet={}; let used=0, skipped=0, total=0, ord=0, r;
+  const groups=new Map(); const txGroups=new Map(); const custSet={}; let used=0, skipped=0, total=0, ord=0, r;
   for(;;){
     r=rdr.next(); if(r===null) break;
     if(r.length===1 && r[0]==='') continue;
@@ -82,19 +82,25 @@ function aggregate(text, map, months, base){
     const nm=(col.itemName>=0?String(r[col.itemName]||'').trim():'');
     if(!kt&&!nm){ skipped++; continue; }
     if(col.custName>=0){ const cn=String(r[col.custName]||'').trim(); if(cn) custSet[cn]=1; }
-    _insertTop(groups, (kt||nm)+''+(nm||kt), {
-      d:dISO, p:price, q:toNum(col.qty>=0?r[col.qty]:null),
+    const key=(kt||nm)+''+(nm||kt);
+    const rec={ d:dISO, p:price, q:toNum(col.qty>=0?r[col.qty]:null),
       kt:kt||nm, nm:nm||kt,
       mk:(col.maker>=0?String(r[col.maker]||'').trim():''),
-      un:(col.unit>=0?String(r[col.unit]||'').trim():''), ord });
+      un:(col.unit>=0?String(r[col.unit]||'').trim():''), ord };
+    _insertTop(groups, key, rec);
+    if(!txGroups.has(key)) txGroups.set(key, []);
+    txGroups.get(key).push(rec);
     used++;
   }
   const catalog=[];
-  groups.forEach(arr=>{
+  groups.forEach((arr,key)=>{
     const g=arr[0];
+    const full=(txGroups.get(key)||[]).slice();
+    full.sort((a,b)=> a.d<b.d?1:a.d>b.d?-1:b.ord-a.ord);
     catalog.push({ mk:g.mk, nm:g.nm, kt:g.kt, un:g.un,
       l:{d:arr[0].d,p:arr[0].p,q:arr[0].q},
-      h:arr.slice(1).map(x=>({d:x.d,p:x.p,q:x.q})) });
+      h:arr.slice(1).map(x=>({d:x.d,p:x.p,q:x.q})),
+      tx:full.map(x=>({d:x.d,p:x.p,q:x.q})) });
   });
   catalog.sort((a,b)=> a.nm.localeCompare(b.nm,'ja')||a.kt.localeCompare(b.kt,'ja'));
   return { payload:{v:1,builtAt:base,months,catalog},
@@ -127,7 +133,8 @@ function aggregateBrute(text, map, months, base){
   buckets.forEach((arr,key)=>{
     arr.sort((a,b)=> a.d<b.d?1:a.d>b.d?-1:b.ord-a.ord);
     const top=arr.slice(0,3);
-    out.set(key,{ p:top[0].p, d:top[0].d, hist:top.slice(1).map(x=>x.p+'@'+x.d).join(',') });
+    out.set(key,{ p:top[0].p, d:top[0].d, hist:top.slice(1).map(x=>x.p+'@'+x.d).join(','),
+      all:arr.map(x=>x.p+'@'+x.d).join(','), count:arr.length });
   });
   return out;
 }
@@ -175,6 +182,9 @@ assert.ok(Array.isArray(gy20.h), '履歴配列がある');
     assert.equal(c.l.p, b.p, 'サンプル: 直近単価一致');
     assert.equal(c.l.d, b.d, 'サンプル: 直近日付一致');
     assert.equal(c.h.map(x=>x.p+'@'+x.d).join(','), b.hist, 'サンプル: 履歴一致');
+    assert.ok(Array.isArray(c.tx), 'サンプル: tx配列がある');
+    assert.equal(c.tx.length, b.count, 'サンプル: tx件数が期間内の全取引数と一致');
+    assert.equal(c.tx.map(x=>x.p+'@'+x.d).join(','), b.all, 'サンプル: tx内容が総当たりの全件と一致');
   }
 }
 
@@ -207,8 +217,10 @@ assert.ok(Array.isArray(gy20.h), '履歴配列がある');
     const b=brute.get((c.kt||c.nm)+''+(c.nm||c.kt));
     assert.equal(c.l.p, b.p, '大きいCSV: 直近単価一致');
     assert.equal(c.h.map(x=>x.p+'@'+x.d).join(','), b.hist, '大きいCSV: 履歴一致');
+    assert.equal(c.tx.length, b.count, '大きいCSV: tx件数一致');
+    assert.equal(c.tx.map(x=>x.p+'@'+x.d).join(','), b.all, '大きいCSV: tx内容一致');
   }
-  console.log('総当たりと突き合わせ: '+res.payload.catalog.length.toLocaleString()+' 件すべて一致');
+  console.log('総当たりと突き合わせ: '+res.payload.catalog.length.toLocaleString()+' 件すべて一致（tx全件も一致）');
 }
 
 /* ================= 3) 引用符つきCSV ================= */

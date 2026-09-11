@@ -130,6 +130,7 @@
 <div class="wrap" id="app"></div>
 <nav class="tabs" id="tabbar" style="display:none">
   <button data-tab="order"><span class="ic">📝</span>発注</button>
+  <button data-tab="period"><span class="ic">📅</span>期間</button>
   <button data-tab="stock"><span class="ic">📦</span>在庫</button>
   <button data-tab="history"><span class="ic">🗂</span>履歴</button>
 </nav>
@@ -291,6 +292,7 @@ function shell(){
 function render(){
   var body=shell();
   if(TAB==='order') renderOrder(body);
+  else if(TAB==='period') renderPeriod(body);
   else if(TAB==='stock') renderStock(body);
   else renderHistory(body);
   window.scrollTo(0,0);
@@ -625,6 +627,89 @@ async function sendOrder(){
   copyText(text, (pdf?'注文書PDFを保存しました。\n':'')+'注文内容をコピーしました。LINEやSMSに貼り付け、PDFも一緒に送ってください。\n控えは「履歴」に保存しました。');
   saveOrderToHistory(o, false);
   draft=newDraft(); TAB='history'; render();
+}
+
+/* ================= 期間 ================= */
+var _periodBounds=null;
+function periodBounds(){
+  if(_periodBounds) return _periodBounds;
+  var min=null, max=null;
+  CAT.forEach(function(c){ (c.tx||[]).forEach(function(x){ if(!min||x.d<min) min=x.d; if(!max||x.d>max) max=x.d; }); });
+  _periodBounds={ min:min||DATA.builtAt, max:max||DATA.builtAt };
+  return _periodBounds;
+}
+function renderPeriod(body){
+  var b=periodBounds();
+  var saved=lsGet('lop.periodRange', null);
+  var start=(saved&&saved.start&&saved.start>=b.min&&saved.start<=b.max)?saved.start:b.min;
+  var end=(saved&&saved.end&&saved.end>=b.min&&saved.end<=b.max)?saved.end:b.max;
+
+  var card=el('<div class="card"><h2>期間で絞り込む</h2><div class="muted">開始日・終了日を指定すると、その間に買った商品を全件一覧表示します（カタログの取り込み期間内のみ）。</div></div>');
+  var g=el('<div class="grid2" style="margin-top:10px"></div>');
+  var fs=el('<div><label class="f">開始日</label><input type="date"></div>');
+  var fe=el('<div><label class="f">終了日</label><input type="date"></div>');
+  var si=fs.querySelector('input'), ei=fe.querySelector('input');
+  si.min=b.min; si.max=b.max; si.value=start;
+  ei.min=b.min; ei.max=b.max; ei.value=end;
+  g.appendChild(fs); g.appendChild(fe);
+  card.appendChild(g);
+  body.appendChild(card);
+
+  var summary=el('<div class="muted" style="margin:2px 2px 10px"></div>');
+  var list=el('<div class="list"></div>');
+  body.appendChild(summary);
+  body.appendChild(list);
+
+  function draw(){
+    var s=si.value||b.min, e=ei.value||b.max;
+    if(s>e){ var t=s; s=e; e=t; si.value=s; ei.value=e; }
+    lsSet('lop.periodRange', { start:s, end:e });
+    var rows=[];
+    CAT.forEach(function(c){
+      (c.tx||[]).forEach(function(x){ if(x.d>=s && x.d<=e) rows.push({ c:c, x:x }); });
+    });
+    rows.sort(function(a,c2){ return a.x.d<c2.x.d?1:a.x.d>c2.x.d?-1:0; });
+    summary.textContent=(rows.length?rows.length.toLocaleString('ja-JP')+'件':'該当する購入履歴がありません')+'　（'+fmtDate(s)+' 〜 '+fmtDate(e)+'）';
+    list.innerHTML='';
+    rows.slice(0,500).forEach(function(row){
+      var c=row.c, x=row.x;
+      var it=el('<div class="item"><div class="main"><div class="nm">'+esc(c.nm||c.kt||'(名称なし)')+'</div>'+
+        '<div class="mt">'+esc([c.kt,c.mk].filter(Boolean).join(' / '))+'</div></div>'+
+        '<div class="rt"><div class="pr">'+yen(x.p)+'</div><div class="dt">'+fmtDate(x.d)+(x.q!=null?'　'+x.q+(c.un||''):'')+'</div></div></div>');
+      it.onclick=function(){ openPeriodDetail(c, x); };
+      list.appendChild(it);
+    });
+    if(rows.length>500) list.appendChild(el('<div class="empty">上位500件（新しい順）を表示。期間を狭めると絞れます。</div>'));
+  }
+  si.onchange=draw; ei.onchange=draw;
+  draw();
+}
+function openPeriodDetail(c, x){
+  var ov=el('<div class="overlay"></div>');
+  var sh=el('<div class="sheet"></div>');
+  sh.appendChild(el('<div class="shead"><b>'+esc(c.nm||c.kt||'(名称なし)')+'</b><button class="btn ghost sm" type="button">閉じる</button></div>'));
+  sh.querySelector('button').onclick=function(){ ov.remove(); };
+  sh.appendChild(el('<div style="font-size:13.5px;line-height:2">'+
+    '<div><span class="muted">品名：</span>'+esc(c.nm||'-')+'</div>'+
+    '<div><span class="muted">型式：</span>'+esc(c.kt||'-')+'</div>'+
+    '<div><span class="muted">メーカー：</span>'+esc(c.mk||'-')+'</div>'+
+    '<div><span class="muted">購入日：</span>'+fmtDate(x.d)+'</div>'+
+    '<div><span class="muted">単価：</span>'+yen(x.p)+'</div>'+
+    '<div><span class="muted">数量：</span>'+(x.q!=null?esc(String(x.q))+esc(c.un||''):'-')+'</div>'+
+    '</div>'));
+  var add=el('<button class="btn" type="button" style="margin-top:14px">この内容で発注に追加</button>');
+  add.onclick=function(){
+    if(!draft) draft=newDraft();
+    var l=blankLine();
+    l.mk=c.mk||''; l.nm=c.nm||''; l.kt=c.kt||''; l.unit=c.un||'台';
+    l.tanka=(x.p!=null)?String(x.p):'';
+    l._hist=(c.h||[]).slice(0,2);
+    draft.lines.push(l);
+    ov.remove(); TAB='order'; render();
+  };
+  sh.appendChild(add);
+  ov.appendChild(sh); document.body.appendChild(ov);
+  ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
 }
 
 /* ================= 在庫 ================= */

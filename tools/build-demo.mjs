@@ -47,23 +47,33 @@ const rdr=makeCsvReader(csv);
 const H=(rdr.next()||[]).map(s=>s.trim());
 const col={ date:H.indexOf('伝票日付'), maker:H.indexOf('メーカー'), name:H.indexOf('品名'),
   kt:H.indexOf('型式'), unit:H.indexOf('単位'), qty:H.indexOf('数量'), price:H.indexOf('単価') };
-const base='2026-09-08'; const cut=new Date(base); cut.setMonth(cut.getMonth()-3);
+const base='2026-09-08'; const MONTHS=12; const cut=new Date(base); cut.setMonth(cut.getMonth()-MONTHS);
 const cutISO=cut.toISOString().slice(0,10);
-const groups=new Map(); let ord=0, r;
+const groups=new Map(); const txGroups=new Map(); let ord=0, r;
 for(;;){ r=rdr.next(); if(r===null) break; if(r.length===1&&r[0]==='') continue; ord++;
   const d=toISO(r[col.date]); const p=toNum(r[col.price]);
   if(!d||p==null||d<cutISO) continue;
   const kt=String(r[col.kt]||'').trim(), nm=String(r[col.name]||'').trim();
   if(!kt&&!nm) continue;
-  insertTop(groups,(kt||nm)+''+(nm||kt),{ d,p,q:toNum(r[col.qty]),kt:kt||nm,nm:nm||kt,
-    mk:String(r[col.maker]||'').trim(),un:String(r[col.unit]||'').trim(),ord });
+  const key=(kt||nm)+''+(nm||kt);
+  const rec={ d,p,q:toNum(r[col.qty]),kt:kt||nm,nm:nm||kt,
+    mk:String(r[col.maker]||'').trim(),un:String(r[col.unit]||'').trim(),ord };
+  insertTop(groups,key,rec);
+  if(!txGroups.has(key)) txGroups.set(key,[]);
+  txGroups.get(key).push(rec);
 }
 const catalog=[];
-groups.forEach(a=>{ const g=a[0]; catalog.push({ mk:g.mk,nm:g.nm,kt:g.kt,un:g.un,
-  l:{d:a[0].d,p:a[0].p,q:a[0].q}, h:a.slice(1).map(x=>({d:x.d,p:x.p,q:x.q})) }); });
+groups.forEach((a,key)=>{
+  const g=a[0];
+  const full=(txGroups.get(key)||[]).slice();
+  full.sort((x,y)=> x.d<y.d?1:x.d>y.d?-1:y.ord-x.ord);
+  catalog.push({ mk:g.mk,nm:g.nm,kt:g.kt,un:g.un,
+    l:{d:a[0].d,p:a[0].p,q:a[0].q}, h:a.slice(1).map(x=>({d:x.d,p:x.p,q:x.q})),
+    tx:full.map(x=>({d:x.d,p:x.p,q:x.q})) });
+});
 catalog.sort((a,b)=> a.nm.localeCompare(b.nm,'ja')||a.kt.localeCompare(b.kt,'ja'));
 
-const payload={ v:1, builtAt:base, months:3, catalog,
+const payload={ v:1, builtAt:base, months:MONTHS, catalog,
   dealer:'株式会社青山商店（デモ）', orderPrefix:'AOYAMA', recvEmail:'toga.daisuke@iwatani.co.jp',
   org:{ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' } };
 
