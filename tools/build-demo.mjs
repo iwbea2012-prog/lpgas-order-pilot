@@ -77,7 +77,40 @@ const notices=[
   { id:'demo-n1', date:'2026-09-10', title:'発注アプリをリニューアルしました', body:'注文書PDFの自動作成、期間指定での購入履歴の一覧表示、このお知らせ機能を追加しました。ご不明点は担当までご連絡ください。', important:false },
   { id:'demo-n2', date:'2026-08-25', title:'年末年始の配送スケジュールについて（例）', body:'12/29〜1/3は休業します。年末のご注文はお早めにお願いします。', important:true },
 ];
-const payload={ v:1, builtAt:base, months:MONTHS, catalog, notices,
+
+// デモ用の最小PDF（Helvetica標準フォントのみ・画像/日本語フォント埋め込み無し）
+function demoPdf(text){
+  const pw=595, ph=842;
+  const content=`BT /F1 20 Tf 60 760 Td (${text.replace(/[()\\]/g,'\\$&')}) Tj ET`;
+  const enc=new TextEncoder();
+  const parts=[]; let pos=0; const off=[];
+  const add=s=>{ const b=(typeof s==='string')?enc.encode(s):s; parts.push(b); pos+=b.length; };
+  const mark=()=>off.push(pos);
+  add('%PDF-1.3\n');
+  mark(); add('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  mark(); add('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+  mark(); add(`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`);
+  mark(); add('4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+  const cbytes=enc.encode(content);
+  mark(); add(`5 0 obj\n<< /Length ${cbytes.length} >>\nstream\n`); add(cbytes); add('\nendstream\nendobj\n');
+  const xrefPos=pos;
+  let xr='xref\n0 6\n0000000000 65535 f \n';
+  for(let i=0;i<5;i++) xr+=('0000000000'+off[i]).slice(-10)+' 00000 n \n';
+  add(xr);
+  add(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF`);
+  const total=parts.reduce((a,b)=>a+b.length,0);
+  const out=Buffer.alloc(total); let k=0; parts.forEach(b=>{ Buffer.from(b).copy(out,k); k+=b.length; });
+  return out;
+}
+const quotes=[
+  { id:'demo-q1', date:'2026-09-08', title:'ガス給湯器一式 御見積り（サンプル）',
+    fileName:'sample-quote.pdf', fileType:'application/pdf',
+    fileData: demoPdf('Sample Quote (DEMO) - RUX-A2016').toString('base64'),
+    note:'これはデモ用の見積もりです。「この内容で発注に追加」を押すと発注タブに明細が入ります。',
+    lines:[{ nm:'ガス給湯器 20号', kt:'RUX-A2016', mk:'リンナイ', qty:1, unit:'台', tanka:67000 }] },
+];
+
+const payload={ v:1, builtAt:base, months:MONTHS, catalog, notices, quotes,
   dealer:'株式会社青山商店（デモ）', orderPrefix:'AOYAMA', recvEmail:'toga.daisuke@iwatani.co.jp',
   org:{ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' } };
 

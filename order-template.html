@@ -140,6 +140,7 @@
 <nav class="tabs" id="tabbar" style="display:none">
   <button data-tab="order"><span class="ic">📝</span>発注</button>
   <button data-tab="notice"><span class="ic">📣<span class="tbadge" id="noticeBadge" style="display:none"></span></span>お知らせ</button>
+  <button data-tab="quote"><span class="ic">🧾<span class="tbadge" id="quoteBadge" style="display:none"></span></span>見積</button>
   <button data-tab="period"><span class="ic">📅</span>期間</button>
   <button data-tab="stock"><span class="ic">📦</span>在庫</button>
   <button data-tab="history"><span class="ic">🗂</span>履歴</button>
@@ -236,6 +237,7 @@ function indexData(){
     return c;
   });
   if(unreadNoticeCount()>0) TAB='notice';
+  else if(unreadQuoteCount()>0) TAB='quote';
 }
 
 /* ---------- stock ---------- */
@@ -304,12 +306,19 @@ function shell(){
     if(unread>0){ nb.textContent=String(unread>99?'99+':unread); nb.style.display='inline-block'; }
     else { nb.style.display='none'; }
   }
+  var qb=document.getElementById('quoteBadge');
+  if(qb){
+    var uq=unreadQuoteCount();
+    if(uq>0){ qb.textContent=String(uq>99?'99+':uq); qb.style.display='inline-block'; }
+    else { qb.style.display='none'; }
+  }
   return body;
 }
 function render(){
   var body=shell();
   if(TAB==='order') renderOrder(body);
   else if(TAB==='notice') renderNotice(body);
+  else if(TAB==='quote') renderQuote(body);
   else if(TAB==='period') renderPeriod(body);
   else if(TAB==='stock') renderStock(body);
   else renderHistory(body);
@@ -674,6 +683,73 @@ function renderNotice(body){
   var read=noticeReadIds(), changed=false;
   list.forEach(function(n){ if(read.indexOf(n.id)<0){ read.push(n.id); changed=true; } });
   if(changed) lsSet('lop.noticeRead', read);
+}
+
+/* ================= 見積もり ================= */
+function quoteReadIds(){ return lsGet('lop.quoteRead', []); }
+function sortedQuotes(){
+  return (DATA.quotes||[]).slice().sort(function(a,b){ return a.date<b.date?1:a.date>b.date?-1:0; });
+}
+function unreadQuoteCount(){
+  var read=quoteReadIds();
+  return sortedQuotes().filter(function(q){ return read.indexOf(q.id)<0; }).length;
+}
+function quoteFileBlob(q){
+  var bin=atob(q.fileData||''), u=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  return new Blob([u], { type:q.fileType||'application/octet-stream' });
+}
+function openQuoteFile(q){
+  if(!q.fileData){ alert('ファイルが添付されていません。'); return; }
+  var blob=quoteFileBlob(q);
+  var url=URL.createObjectURL(blob);
+  var w=window.open(url, '_blank');
+  if(!w){
+    var a=document.createElement('a'); a.href=url; a.download=q.fileName||('見積書_'+(q.date||'')+'.pdf');
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
+}
+function addQuoteLinesToDraft(q){
+  if(!draft) draft=newDraft();
+  (q.lines||[]).forEach(function(ql){
+    var l=blankLine();
+    l.mk=ql.mk||''; l.nm=ql.nm||''; l.kt=ql.kt||''; l.unit=ql.unit||'台';
+    l.qty=(ql.qty!=null&&ql.qty!=='')?ql.qty:1;
+    l.teika=(ql.teika!=null&&ql.teika!=='')?String(ql.teika):'';
+    l.tanka=(ql.tanka!=null&&ql.tanka!=='')?String(ql.tanka):'';
+    l.biko=ql.biko||'';
+    draft.lines.push(l);
+  });
+  TAB='order'; render();
+}
+function renderQuote(body){
+  var list=sortedQuotes();
+  body.appendChild(el('<div class="card"><h2>見積もり</h2><div class="muted">当社から届いた見積書です。ファイルを開いて内容をご確認ください。</div></div>'));
+  if(!list.length){
+    body.appendChild(el('<div class="empty">見積もりはまだありません</div>'));
+  } else {
+    list.forEach(function(q){
+      var card=el('<div class="notice"></div>');
+      card.appendChild(el('<div class="ndate">'+fmtDate(q.date)+'</div>'));
+      card.appendChild(el('<div class="ntitle">'+esc(q.title||'見積書')+'</div>'));
+      if(q.note){ var nb=el('<div class="nbody"></div>'); nb.textContent=q.note; card.appendChild(nb); }
+      var btnRow=el('<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap"></div>');
+      var openBtn=el('<button class="btn ghost sm" type="button">ファイルを開く'+(q.fileName?'（'+esc(q.fileName)+'）':'')+'</button>');
+      openBtn.onclick=function(){ openQuoteFile(q); };
+      btnRow.appendChild(openBtn);
+      if(q.lines && q.lines.length){
+        var addBtn=el('<button class="btn sm" type="button">この内容で発注に追加</button>');
+        addBtn.onclick=function(){ addQuoteLinesToDraft(q); };
+        btnRow.appendChild(addBtn);
+      }
+      card.appendChild(btnRow);
+      body.appendChild(card);
+    });
+  }
+  var read=quoteReadIds(), changed=false;
+  list.forEach(function(q){ if(read.indexOf(q.id)<0){ read.push(q.id); changed=true; } });
+  if(changed) lsSet('lop.quoteRead', read);
 }
 
 /* ================= 期間 ================= */

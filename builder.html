@@ -94,9 +94,9 @@
     </div>
     <div class="hint" id="pwHint">— </div>
     <div class="fld" style="margin-top:12px">
-      <label>現在の index.html（あれば、お知らせを引き継ぎます・任意）</label>
+      <label>現在の index.html（あれば、お知らせ・見積もりを引き継ぎます・任意）</label>
       <input type="file" id="prevHtml" accept=".html,text/html">
-      <div class="muted" style="font-size:12px;margin-top:4px">選んだ場合、上の合言葉（変更していなければ今までと同じもの）で復号できれば、既存のお知らせをそのまま新しい index.html に引き継ぎます。</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">選んだ場合、上の合言葉（変更していなければ今までと同じもの）で復号できれば、既存のお知らせ・見積もりをそのまま新しい index.html に引き継ぎます。</div>
       <div id="prevInfo" class="muted" style="font-size:12.5px;margin-top:4px"></div>
     </div>
     <div style="margin-top:14px">
@@ -469,17 +469,18 @@ genBtn.onclick=async function(){
     payload.lineAddUrl=(lineurlEl.value||'').trim();
     payload.lineOaName=(lineoaEl.value||'').trim();
     payload.org={ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' };
-    payload.notices=[];
+    payload.notices=[]; payload.quotes=[];
     var prevFile=prevHtmlEl.files[0];
     if(prevFile){
       try{
         var prevText=await prevFile.text();
         var prevPayload=await decryptExisting(prevText, pw1.value);
         payload.notices=Array.isArray(prevPayload.notices)?prevPayload.notices:[];
-        prevInfo.innerHTML='<span style="color:var(--ok,#127a52)">✓ お知らせ '+payload.notices.length+' 件を引き継ぎました。</span>';
+        payload.quotes=Array.isArray(prevPayload.quotes)?prevPayload.quotes:[];
+        prevInfo.innerHTML='<span style="color:var(--ok,#127a52)">✓ お知らせ '+payload.notices.length+' 件・見積もり '+payload.quotes.length+' 件を引き継ぎました。</span>';
       }catch(e){
-        payload.notices=[];
-        prevInfo.innerHTML='<span style="color:var(--warn)">⚠ 既存ファイルの復号に失敗したため、お知らせは引き継げませんでした（合言葉が変わった可能性があります）。お知らせは空で作成します。あとで notice-tool.html から追加できます。</span>';
+        payload.notices=[]; payload.quotes=[];
+        prevInfo.innerHTML='<span style="color:var(--warn)">⚠ 既存ファイルの復号に失敗したため、お知らせ・見積もりは引き継げませんでした（合言葉が変わった可能性があります）。空で作成します。あとで notice-tool.html / quote-tool.html から追加できます。</span>';
       }
     }
     var blob=await encryptPayload(payload, pw1.value);

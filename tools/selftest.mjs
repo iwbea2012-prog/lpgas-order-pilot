@@ -240,6 +240,11 @@ const full = Object.assign({}, payload, {
   notices:[
     { id:'n1', date:'2026-09-10', title:'テスト用お知らせ', body:'本文テスト。', important:true },
     { id:'n2', date:'2026-08-01', title:'過去のお知らせ', body:'古い方。', important:false }
+  ],
+  quotes:[
+    { id:'q1', date:'2026-09-05', title:'テスト用見積もり', fileName:'q.pdf', fileType:'application/pdf',
+      fileData:Buffer.from('dummy-pdf-bytes').toString('base64'), note:'テスト。',
+      lines:[{ nm:'テスト品', kt:'T-1', mk:'テストメーカー', qty:2, unit:'台', tanka:1000 }] }
   ]
 });
 const pass='あおやま ガス 発注 えんぴつ 2026';
