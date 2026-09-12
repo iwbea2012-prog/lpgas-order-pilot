@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>注文請書（納期回答）ツール</title>
+<style>
+  :root{--bg:#f4f6f8;--card:#fff;--ink:#182430;--muted:#63707c;--accent:#12507a;--line:#dde3e8;--warn:#b3261e;--ok:#127a52}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+  .wrap{max-width:760px;margin:0 auto;padding:22px 16px 80px}
+  h1{font-size:20px;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:13.5px;margin:0 0 20px}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .step h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .step h2 .n{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:24px;text-align:center;color:var(--muted);font-size:14px;cursor:pointer;background:#fafcfd}
+  .drop.hot{border-color:var(--accent);background:#eef4f8;color:var(--ink)}
+  input[type=file]{display:none}
+  .fld{margin:10px 0}
+  .fld label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:3px}
+  .fld input{font-size:15px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;width:100%;font-family:inherit}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button.go{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;cursor:pointer}
+  button.go:disabled{opacity:.45;cursor:default}
+  button.ghost{background:#eef2f5;color:var(--ink);border:0;border-radius:10px;padding:9px 13px;font-size:13.5px;font-weight:600;cursor:pointer}
+  button.danger{background:#fde8e6;color:var(--warn);border:0;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .muted{color:var(--muted);font-size:12.5px}
+  code{background:#eef2f5;padding:1px 5px;border-radius:5px;font-size:12.5px}
+  .err{color:var(--warn);font-size:13px;margin-top:10px;min-height:18px}
+  .rlist{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .ritem{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .ritem.pending{border-color:#bcdcc9;background:#f2f9f5}
+  .ritem .rh{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .ritem .rt{font-weight:700;font-size:14px;margin:4px 0 4px}
+  .pillnew{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:#dff3e6;color:var(--ok);margin-left:6px}
+  .done{background:#e7f2ec;border:1px solid #bcdcc9;border-radius:12px;padding:16px;margin-top:14px;font-size:13.5px;display:none}
+  .done.show{display:block}
+  ol.mini{margin:6px 0 0 18px;padding:0;font-size:13px}
+  ol.mini li{margin:3px 0}
+  .empty{color:var(--muted);text-align:center;padding:16px;font-size:13.5px}
+  .warnbox{background:#fdeceb;color:var(--warn);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
+  .okbox{background:#e7f2ec;color:var(--ok);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>注文請書（納期回答）ツール</h1>
+  <p class="lead">届いた注文書PDFの<b>注文番号</b>を見て、出荷日・納入日予定を登録すると、その番号の注文を出した販売店の「履歴」タブに表示されます。<br>
+  同じ注文番号で再登録すると、内容を上書きします（最新の回答だけが残ります）。<br>
+  中身の処理はこのブラウザの中だけで行います。書き出す直前だけ、他の人の変更を取りこぼさないよう公開中の index.html を確認しに行きます。</p>
+
+  <div class="step">
+    <h2><span class="n">1</span> 今の index.html を読み込む</h2>
+    <div class="drop" id="drop">ここに index.html をドラッグ＆ドロップ<br>または クリックして選択</div>
+    <input type="file" id="file" accept=".html,text/html">
+    <div id="loadinfo" class="muted" style="margin-top:8px"></div>
+    <div class="fld" style="margin-top:12px"><label>合言葉</label><input type="text" id="pw" placeholder="この発注アプリの合言葉" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <button class="go" id="openBtn" disabled>開く</button>
+    <div class="err" id="openErr"></div>
+  </div>
+
+  <div class="step" id="editStep" style="display:none">
+    <h2><span class="n">2</span> 納期回答を登録</h2>
+    <div class="muted" id="dealerInfo" style="margin-bottom:10px"></div>
+
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:6px">登録済みの回答</div>
+    <div class="rlist" id="rlist"></div>
+
+    <div style="font-weight:700;font-size:13.5px;margin:18px 0 6px">回答を登録・上書き</div>
+    <div class="grid2">
+      <div class="fld"><label>注文番号（PDFに印字されているものを転記）</label><input type="text" id="rOrderNo" placeholder="例：AOYAMA-20260910-01"></div>
+      <div class="fld"><label>出荷日・納入日予定</label><input type="date" id="rShipDate"></div>
+    </div>
+    <button class="ghost" id="addBtn" style="margin-top:10px">＋ この内容を登録</button>
+  </div>
+
+  <div class="step" id="genStep" style="display:none">
+    <h2><span class="n">3</span> index.html を書き出す</h2>
+    <p class="muted" style="margin:0 0 10px">合言葉は変更しない限りそのままです。変えたい場合だけ下に入力してください。</p>
+    <div class="fld"><label>合言葉を変更する場合のみ入力（2回）</label>
+      <input type="text" id="pw1new" placeholder="新しい合言葉（空欄なら変更なし）" autocomplete="off" style="margin-bottom:8px">
+      <input type="text" id="pw2new" placeholder="もう一度" autocomplete="off">
+    </div>
+    <div class="muted" id="pwHint" style="margin-bottom:10px">— </div>
+    <button class="go" id="genBtn">最新版と統合して index.html を書き出す</button>
+    <div id="mergeInfo"></div>
+    <div class="done" id="done">
+      <b>✅ index.html を書き出しました。</b>
+      <ol class="mini">
+        <li>GitHub のリポジトリ画面 → <b>Add file → Upload files</b>（または <code>.../upload/main</code>）で、今ダウンロードした <code>index.html</code> を上書きアップロード → Commit。</li>
+        <li>2〜3分後、販売店の履歴タブに反映されます。</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script>
+/* eslint-disable */
+(function(){
+"use strict";
+
+/* ---------- crypto（builder.html と同一） ---------- */
+function b64ToBuf(b64){ var bin=atob(b64), u=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); return u; }
+function bufToB64(buf){ var u=new Uint8Array(buf), s=''; for(var i=0;i<u.length;i++)s+=String.fromCharCode(u[i]); return btoa(s); }
+async function deriveKey(pass, salt, iter){
+  var base=await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:iter,hash:'SHA-256'}, base, {name:'AES-GCM',length:256}, true, ['decrypt']);
+}
+async function decryptBlob(blob, pass){
+  var key=await deriveKey(pass, b64ToBuf(blob.salt), blob.iter||310000);
+  var pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToBuf(blob.iv)}, key, b64ToBuf(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function encryptPayload(obj, pass){
+  var iter=310000;
+  var salt=crypto.getRandomValues(new Uint8Array(16));
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  var base=await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  var key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:salt,iterations:iter,hash:'SHA-256'}, base, {name:'AES-GCM',length:256}, false, ['encrypt']);
+  var ct=await crypto.subtle.encrypt({name:'AES-GCM',iv:iv}, key, new TextEncoder().encode(JSON.stringify(obj)));
+  return { kdf:'PBKDF2', hash:'SHA-256', iter:iter, salt:bufToB64(salt), iv:bufToB64(iv), ct:bufToB64(ct) };
+}
+function extractPayloadBlob(htmlText){
+  var m=htmlText.match(/<script id="payload"[^>]*>([\s\S]*?)<\/script>/);
+  if(!m) return null;
+  try{ var b=JSON.parse(m[1]); return (b&&b.ct&&b.salt&&b.iv)?b:null; }catch(e){ return null; }
+}
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function fmtDate(d){ if(!d) return '—'; var p=String(d).split('-'); return p.length===3?(p[0]+'/'+p[1]+'/'+p[2]):String(d); }
+function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+var HTML_TEXT=null, PAYLOAD=null, PASS=null;
+var sessionUpserts={};   // orderNo -> {orderNo, shipDate, updatedAt}（このセッションで登録・上書きしたもの）
+var sessionDeleted=[];   // このセッションで削除した「既存」回答のorderNo
+
+var drop=document.getElementById('drop'), fileInput=document.getElementById('file'), loadinfo=document.getElementById('loadinfo'),
+    pwEl=document.getElementById('pw'), openBtn=document.getElementById('openBtn'), openErr=document.getElementById('openErr'),
+    editStep=document.getElementById('editStep'), dealerInfo=document.getElementById('dealerInfo'), rlist=document.getElementById('rlist'),
+    rOrderNo=document.getElementById('rOrderNo'), rShipDate=document.getElementById('rShipDate'), addBtn=document.getElementById('addBtn'),
+    genStep=document.getElementById('genStep'),
+    pw1new=document.getElementById('pw1new'), pw2new=document.getElementById('pw2new'), pwHint=document.getElementById('pwHint'), mergeInfo=document.getElementById('mergeInfo'),
+    genBtn=document.getElementById('genBtn'), doneEl=document.getElementById('done');
+
+rShipDate.value=todayISO();
+
+drop.onclick=function(){ fileInput.click(); };
+fileInput.onchange=function(){ if(fileInput.files[0]) loadFile(fileInput.files[0]); };
+['dragenter','dragover'].forEach(function(e){ drop.addEventListener(e,function(ev){ ev.preventDefault(); drop.classList.add('hot'); }); });
+['dragleave','drop'].forEach(function(e){ drop.addEventListener(e,function(ev){ ev.preventDefault(); drop.classList.remove('hot'); }); });
+drop.addEventListener('drop',function(ev){ var f=ev.dataTransfer.files[0]; if(f) loadFile(f); });
+
+function refreshOpenBtn(){ openBtn.disabled = !(HTML_TEXT && pwEl.value); }
+pwEl.oninput=refreshOpenBtn;
+
+async function loadFile(file){
+  var text=await file.text();
+  var blob=extractPayloadBlob(text);
+  if(!blob){ loadinfo.innerHTML='<span style="color:var(--warn)">index.html として認識できませんでした。</span>'; HTML_TEXT=null; refreshOpenBtn(); return; }
+  HTML_TEXT=text; window._BLOB=blob;
+  loadinfo.textContent='読み込み: '+file.name+' ／ '+(file.size/1024).toFixed(0)+'KB';
+  refreshOpenBtn();
+}
+
+openBtn.onclick=async function(){
+  openBtn.disabled=true; openBtn.textContent='確認中…'; openErr.textContent='';
+  try{
+    PAYLOAD=await decryptBlob(window._BLOB, pwEl.value);
+    PASS=pwEl.value;
+    if(!Array.isArray(PAYLOAD.orderReplies)) PAYLOAD.orderReplies=[];
+    sessionUpserts={}; sessionDeleted=[];
+    dealerInfo.textContent='会社名：'+(PAYLOAD.dealer||'（不明）')+' ／ カタログ '+(PAYLOAD.catalog||[]).length+' 件 ／ 登録済みの回答 '+PAYLOAD.orderReplies.length+' 件';
+    drawReplies();
+    editStep.style.display=''; genStep.style.display='';
+    openBtn.textContent='開く（読み込み済み）';
+  }catch(e){
+    openErr.textContent='合言葉が違うか、ファイルが壊れています。もう一度確認してください。';
+    openBtn.textContent='開く'; openBtn.disabled=false;
+  }
+};
+
+function currentRepliesView(){
+  var base=(PAYLOAD.orderReplies||[]).filter(function(r){ return sessionDeleted.indexOf(r.orderNo)<0 && !sessionUpserts[r.orderNo]; });
+  return base.concat(Object.keys(sessionUpserts).map(function(k){ return sessionUpserts[k]; }))
+    .sort(function(a,b){ return (a.updatedAt||'')<(b.updatedAt||'')?1:-1; });
+}
+
+function drawReplies(){
+  var list=currentRepliesView();
+  rlist.innerHTML='';
+  if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='まだ回答はありません'; rlist.appendChild(e); return; }
+  list.forEach(function(r){
+    var isNew=!!sessionUpserts[r.orderNo];
+    var it=document.createElement('div');
+    it.className='ritem'+(isNew?' pending':'');
+    it.innerHTML='<div class="rh"><span>更新日 '+fmtDate(r.updatedAt)+(isNew?'<span class="pillnew">今回登録</span>':'')+'</span></div>'+
+      '<div class="rt">注文番号：'+esc(r.orderNo||'')+'</div>'+
+      '<div class="muted">出荷日・納入日予定：'+(r.shipDate?fmtDate(r.shipDate):'未定')+'</div>';
+    var del=document.createElement('button');
+    del.className='danger'; del.textContent='削除'; del.style.marginTop='8px';
+    del.onclick=function(){
+      if(!confirm('この回答を削除しますか？（注文番号: '+r.orderNo+'）')) return;
+      if(isNew){ delete sessionUpserts[r.orderNo]; }
+      else { sessionDeleted.push(r.orderNo); }
+      drawReplies();
+    };
+    it.appendChild(del);
+    rlist.appendChild(it);
+  });
+}
+
+addBtn.onclick=function(){
+  var no=rOrderNo.value.trim();
+  if(!no){ alert('注文番号を入れてください。'); return; }
+  sessionUpserts[no]={ orderNo:no, shipDate:rShipDate.value||'', updatedAt:todayISO() };
+  // 削除リストに載っていたら取り消す（登録し直したので）
+  sessionDeleted=sessionDeleted.filter(function(x){ return x!==no; });
+  rOrderNo.value=''; rShipDate.value=todayISO();
+  drawReplies();
+};
+
+function scorePw(s){
+  if(!s) return {ok:true,msg:'— 空欄なら合言葉は変更しません'};
+  if(s.length<8) return {ok:false,msg:'短すぎます（8文字以上、できれば単語4つ以上）'};
+  return {ok:true,msg:'変更する：OK（'+s.length+'文字）'};
+}
+function refreshPwHint(){
+  var a=pw1new.value, b=pw2new.value;
+  if(!a && !b){ pwHint.textContent='— 空欄なら今の合言葉のまま書き出します'; return; }
+  if(a!==b){ pwHint.textContent='2つの合言葉が一致しません'; return; }
+  pwHint.textContent=scorePw(a).msg;
+}
+pw1new.oninput=refreshPwHint; pw2new.oninput=refreshPwHint;
+
+genBtn.onclick=async function(){
+  if(pw1new.value || pw2new.value){
+    if(pw1new.value!==pw2new.value){ alert('新しい合言葉が一致しません。'); return; }
+    var sc=scorePw(pw1new.value);
+    if(!sc.ok){ alert(sc.msg); return; }
+  }
+  genBtn.disabled=true; genBtn.textContent='公開中の版を確認しています…'; mergeInfo.innerHTML='';
+
+  var basePayload=PAYLOAD, mergeNote='';
+  try{
+    var res=await fetch('index.html', { cache:'no-store' });
+    if(res.ok){
+      var liveText=await res.text();
+      var liveBlob=extractPayloadBlob(liveText);
+      if(liveBlob){
+        var livePayload=await decryptBlob(liveBlob, PASS);
+        basePayload=livePayload;
+        var liveCount=(livePayload.orderReplies||[]).length, myCount=(PAYLOAD.orderReplies||[]).length;
+        mergeNote = (liveCount!==myCount)
+          ? '<div class="okbox">✓ 公開中の最新版を確認しました（回答 '+liveCount+' 件）。他の変更点も含めて統合します。</div>'
+          : '<div class="okbox">✓ 公開中の最新版を確認しました。変更はありませんでした。</div>';
+      } else {
+        mergeNote='<div class="warnbox">⚠ 公開中の index.html を認識できず、最新版との統合はできませんでした。読み込んだ時点の内容で書き出します。</div>';
+      }
+    } else {
+      mergeNote='<div class="warnbox">⚠ 公開中の index.html を取得できませんでした（HTTP '+res.status+'）。読み込んだ時点の内容で書き出します。</div>';
+    }
+  }catch(e){
+    mergeNote='<div class="warnbox">⚠ 通信できなかったため、最新版との統合はできませんでした（オフライン、または合言葉が変わっている可能性）。読み込んだ時点の内容で書き出します。</div>';
+  }
+  mergeInfo.innerHTML=mergeNote;
+
+  genBtn.textContent='書き出し中…';
+  try{
+    var finalPayload=JSON.parse(JSON.stringify(basePayload));
+    if(!Array.isArray(finalPayload.orderReplies)) finalPayload.orderReplies=[];
+    // 自分が削除したものを外す
+    finalPayload.orderReplies=finalPayload.orderReplies.filter(function(r){ return sessionDeleted.indexOf(r.orderNo)<0; });
+    // 自分が登録・上書きしたものを反映（同じ注文番号があれば置き換え、無ければ追加）
+    Object.keys(sessionUpserts).forEach(function(no){
+      var idx=finalPayload.orderReplies.findIndex(function(r){ return r.orderNo===no; });
+      if(idx>=0) finalPayload.orderReplies[idx]=sessionUpserts[no];
+      else finalPayload.orderReplies.push(sessionUpserts[no]);
+    });
+
+    var usePass=pw1new.value ? pw1new.value : PASS;
+    var blob=await encryptPayload(finalPayload, usePass);
+    var html=HTML_TEXT.replace(/<script id="payload"[^>]*>[\s\S]*?<\/script>/,
+      '<script id="payload" type="application/json">'+JSON.stringify(blob)+'<\/script>');
+    var out=new Blob([html],{type:'text/html'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(out); a.download='index.html';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); },1500);
+    doneEl.classList.add('show');
+  }catch(e){
+    alert('書き出しに失敗しました：'+e.message);
+  }
+  genBtn.textContent='最新版と統合して index.html を書き出す';
+  genBtn.disabled=false;
+};
+})();
+</script>
+</body>
+</html>

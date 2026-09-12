@@ -143,7 +143,7 @@
   <button data-tab="quote"><span class="ic">🧾<span class="tbadge" id="quoteBadge" style="display:none"></span></span>見積</button>
   <button data-tab="period"><span class="ic">📅</span>期間</button>
   <button data-tab="stock"><span class="ic">📦</span>在庫</button>
-  <button data-tab="history"><span class="ic">🗂</span>履歴</button>
+  <button data-tab="history"><span class="ic">🗂<span class="tbadge" id="historyBadge" style="display:none"></span></span>履歴</button>
 </nav>
 <div id="printArea"></div>
 <div id="renderArea"></div>
@@ -238,6 +238,7 @@ function indexData(){
   });
   if(unreadNoticeCount()>0) TAB='notice';
   else if(unreadQuoteCount()>0) TAB='quote';
+  else if(unreadReplyCount()>0) TAB='history';
 }
 
 /* ---------- stock ---------- */
@@ -311,6 +312,12 @@ function shell(){
     var uq=unreadQuoteCount();
     if(uq>0){ qb.textContent=String(uq>99?'99+':uq); qb.style.display='inline-block'; }
     else { qb.style.display='none'; }
+  }
+  var hb=document.getElementById('historyBadge');
+  if(hb){
+    var ur=unreadReplyCount();
+    if(ur>0){ hb.textContent=String(ur>99?'99+':ur); hb.style.display='inline-block'; }
+    else { hb.style.display='none'; }
   }
   return body;
 }
@@ -979,10 +986,26 @@ function openBackupSheet(){
   ov.addEventListener('click',function(e){ if(e.target===ov) ov.remove(); });
 }
 
+/* ---------- 注文請書（当社からの納期回答） ---------- */
+function replyReadKeys(){ return lsGet('lop.replyRead', []); }
+function replyKey(r){ return (r.orderNo||'')+':'+(r.updatedAt||''); }
+function findReply(orderNo){
+  if(!orderNo) return null;
+  return (DATA.orderReplies||[]).find(function(r){ return r.orderNo===orderNo; }) || null;
+}
+function unreadReplyCount(){
+  var read=replyReadKeys();
+  return (DATA.orderReplies||[]).filter(function(r){ return read.indexOf(replyKey(r))<0; }).length;
+}
+function markReplyRead(r){
+  var key=replyKey(r), read=replyReadKeys();
+  if(read.indexOf(key)<0){ read.push(key); lsSet('lop.replyRead', read); }
+}
+
 /* ================= 履歴 ================= */
 function renderHistory(body){
   var all=loadOrders();
-  var top=el('<div class="card"><h2>発注履歴</h2><div class="muted">送信した注文の控えです。当社から受付返信が来たら「確認済み」を付けると取り違え防止になります。</div></div>');
+  var top=el('<div class="card"><h2>発注履歴</h2><div class="muted">送信した注文の控えです。当社から納期回答が届くと「回答あり」が表示されます。</div></div>');
   var bb=el('<div class="grid2" style="margin-top:10px"></div>');
   var csvb=el('<button class="btn ghost sm" type="button">CSVで書き出す</button>');
   csvb.onclick=exportOrdersCsv;
@@ -995,9 +1018,12 @@ function renderHistory(body){
   if(!all.length){ body.appendChild(el('<div class="empty">まだ発注履歴がありません</div>')); return; }
   var list=el('<div class="list"></div>');
   all.forEach(function(o){
+    var reply=findReply(o.orderNo);
     var row=el('<div class="item"><div class="main"><div class="nm">'+esc(o.orderNo||'(番号なし)')+
-      (o.sent?'<span class="pill sent">送信</span>':'')+(o.acked?'<span class="pill ack">確認済</span>':'')+'</div>'+
-      '<div class="mt">'+fmtDate(o.orderDate)+'　明細'+o.lines.length+'件　'+yen(o.total)+'</div></div><span class="mt">›</span></div>');
+      (o.sent?'<span class="pill sent">送信</span>':'')+(o.acked?'<span class="pill ack">確認済</span>':'')+
+      (reply?'<span class="pill important">回答あり</span>':'')+'</div>'+
+      '<div class="mt">'+fmtDate(o.orderDate)+'　明細'+o.lines.length+'件　'+yen(o.total)+
+      (reply&&reply.shipDate?'　出荷予定 '+fmtDate(reply.shipDate):'')+'</div></div><span class="mt">›</span></div>');
     row.onclick=function(){ openOrderDetail(o.id); };
     list.appendChild(row);
   });
@@ -1012,6 +1038,14 @@ function openOrderDetail(id){
   sh.appendChild(el('<div class="shead"><b>'+esc(o.orderNo||'(番号なし)')+'</b><button class="btn ghost sm" type="button">閉じる</button></div>'));
   sh.querySelector('button').onclick=function(){ ov.remove(); render(); };
   sh.appendChild(el(orderDocHtml(o)));
+  var reply=findReply(o.orderNo);
+  if(reply){
+    markReplyRead(reply);
+    sh.appendChild(el('<div class="notice important" style="margin-top:12px">'+
+      '<div class="ndate">当社からの納期回答'+(reply.updatedAt?'（'+fmtDate(reply.updatedAt)+'時点）':'')+'</div>'+
+      '<div class="ntitle">出荷日・納入日予定：'+(reply.shipDate?esc(fmtDate(reply.shipDate)):'未定')+'</div>'+
+    '</div>'));
+  }
   var t1=el('<label class="ck" style="display:flex;align-items:center;gap:8px;margin:12px 2px 4px;font-size:14px"><input type="checkbox"> 送信した</label>');
   t1.querySelector('input').checked=!!o.sent;
   t1.querySelector('input').onchange=function(){ o.sent=this.checked; saveOrders(all); };

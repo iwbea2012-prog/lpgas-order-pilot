@@ -245,6 +245,9 @@ const full = Object.assign({}, payload, {
     { id:'q1', date:'2026-09-05', title:'テスト用見積もり', fileName:'q.pdf', fileType:'application/pdf',
       filePath:'quotes/q1.pdf', note:'テスト。（見積もりファイル本体は index.html の外・quotes/ 配下の別ファイル）',
       lines:[{ nm:'テスト品', kt:'T-1', mk:'テストメーカー', qty:2, unit:'台', tanka:1000 }] }
+  ],
+  orderReplies:[
+    { orderNo:'AOYAMA-20260910-01', shipDate:'2026-09-20', updatedAt:'2026-09-12' }
   ]
 });
 const pass='あおやま ガス 発注 えんぴつ 2026';

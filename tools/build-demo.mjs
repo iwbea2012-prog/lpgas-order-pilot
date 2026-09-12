@@ -88,7 +88,12 @@ const quotes=[
     lines:[{ nm:'ガス給湯器 20号', kt:'RUX-A2016', mk:'リンナイ', qty:1, unit:'台', tanka:67000 }] },
 ];
 
-const payload={ v:1, builtAt:base, months:MONTHS, catalog, notices, quotes,
+// 注文請書（納期回答）のサンプル。デモで動きを見るには、発注タブで
+// 注文番号を「AOYAMA-20260101-01」にして送信し、履歴タブを開いてください。
+const orderReplies=[
+  { orderNo:'AOYAMA-20260101-01', shipDate:'2026-09-20', updatedAt:'2026-09-12' },
+];
+const payload={ v:1, builtAt:base, months:MONTHS, catalog, notices, quotes, orderReplies,
   dealer:'株式会社青山商店（デモ）', orderPrefix:'AOYAMA', recvEmail:'toga.daisuke@iwatani.co.jp',
   org:{ name:'岩谷産業㈱熊本支店', tel:'096-324-8600', fax:'096-324-3366' } };
 
