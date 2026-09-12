@@ -26,6 +26,7 @@
   button.go{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;cursor:pointer}
   button.go:disabled{opacity:.45;cursor:default}
   button.ghost{background:#eef2f5;color:var(--ink);border:0;border-radius:10px;padding:9px 13px;font-size:13.5px;font-weight:600;cursor:pointer}
+  button.ghost:disabled{opacity:.5;cursor:default}
   button.danger{background:#fde8e6;color:var(--warn);border:0;border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;cursor:pointer}
   button.sm{padding:6px 9px;font-size:12px}
   .muted{color:var(--muted);font-size:12.5px}
@@ -49,15 +50,14 @@
   .warnbox{background:#fdeceb;color:var(--warn);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
   .okbox{background:#e7f2ec;color:var(--ok);border-radius:10px;padding:9px 12px;font-size:12.5px;margin-top:8px}
   .pillnew{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:#dff3e6;color:var(--ok);margin-left:6px}
-  .filerow{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:8px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>見積もりアップロードツール</h1>
   <p class="lead">今ある <code>index.html</code> を読み込んで、完成済みの見積書（PDF/Excelなど）を<b>見積もりタブ</b>に追加できます。基幹の見積作成フローは変わりません。<br>
-  <b>見積書ファイルは index.html に埋め込まず、別ファイルとして <code>quotes/</code> フォルダにアップロードします</b>（複数人が同時に作業しても、ファイルどうしがぶつからないようにするためです）。<br>
-  この画面はネット通信をしません（最後の「書き出す」時だけ、競合確認のため公開中の index.html を読みに行きます）。</p>
+  <b>見積書ファイルは index.html の中に、合言葉で暗号化して埋め込みます</b>（リポジトリは公開でも、合言葉を知らなければ中身は一切読めません）。<br>
+  この画面はネット通信をしません（最後の「書き出す」時だけ、他の人の変更を取りこぼさないよう公開中の index.html を読みに行きます）。</p>
 
   <div class="step">
     <h2><span class="n">1</span> 今の index.html を読み込む</h2>
@@ -72,6 +72,7 @@
   <div class="step" id="editStep" style="display:none">
     <h2><span class="n">2</span> 見積もりを編集</h2>
     <div class="muted" id="dealerInfo" style="margin-bottom:10px"></div>
+    <div class="muted" id="sizeInfo" style="margin-bottom:10px"></div>
 
     <div style="font-weight:700;font-size:13.5px;margin-bottom:6px">見積もり一覧</div>
     <div class="qlist" id="qlist"></div>
@@ -97,15 +98,8 @@
     </div>
   </div>
 
-  <div class="step" id="fileStep" style="display:none">
-    <h2><span class="n">3</span> 見積書ファイルをアップロード</h2>
-    <p class="muted" style="margin:0 0 10px">今回追加した見積もりの<b>ファイル本体</b>を、先に <code>quotes</code> フォルダへアップロードしてください（下のリンクから）。ファイル名は変えずにそのまま使ってください。</p>
-    <div id="fileList"></div>
-    <a class="ghost" style="display:inline-block;margin-top:8px;text-decoration:none" href="https://github.com/iwbea2012-prog/lpgas-order-pilot/upload/main/quotes" target="_blank" rel="noopener">quotes フォルダにアップロードする（GitHub）</a>
-  </div>
-
   <div class="step" id="genStep" style="display:none">
-    <h2><span class="n">4</span> index.html を書き出す</h2>
+    <h2><span class="n">3</span> index.html を書き出す</h2>
     <p class="muted" style="margin:0 0 10px">書き出す前に、公開中の index.html を確認して、他の人が加えた変更（お知らせ・見積もり）を自動で取り込みます。合言葉は変更しない限りそのままです。</p>
     <div class="fld"><label>合言葉を変更する場合のみ入力（2回）</label>
       <input type="text" id="pw1new" placeholder="新しい合言葉（空欄なら変更なし）" autocomplete="off" style="margin-bottom:8px">
@@ -117,7 +111,6 @@
     <div class="done" id="done">
       <b>✅ index.html を書き出しました。</b>
       <ol class="mini">
-        <li>先に「見積書ファイル」を <code>quotes</code> フォルダへアップロード済みか確認（ステップ3）。</li>
         <li>GitHub のリポジトリ画面 → <b>Add file → Upload files</b>（または <code>.../upload/main</code>）で、今ダウンロードした <code>index.html</code> を上書きアップロード → Commit。</li>
         <li>2〜3分後、アプリの見積もりタブに反映されます。</li>
       </ol>
@@ -160,7 +153,6 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){ret
 function fmtDate(d){ if(!d) return '—'; var p=String(d).split('-'); return p.length===3?(p[0]+'/'+p[1]+'/'+p[2]):String(d); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function extOf(name){ var m=/\.[a-zA-Z0-9]+$/.exec(name||''); return m?m[0].toLowerCase():''; }
 function fileToB64(file){
   return new Promise(function(resolve,reject){
     var r=new FileReader();
@@ -171,17 +163,15 @@ function fileToB64(file){
 }
 
 var HTML_TEXT=null, PAYLOAD=null, PASS=null;
-var sessionAdded=[];      // このセッションで追加した見積もり（{id,date,title,...,filePath}）
+var sessionAdded=[];      // このセッションで追加した見積もり（{id,date,title,...,fileData}）
 var sessionDeleted=[];    // このセッションで削除した「既存」見積もりのid
-var pendingFiles=[];      // {filePath, file(File), quoteId}
 
 var drop=document.getElementById('drop'), fileInput=document.getElementById('file'), loadinfo=document.getElementById('loadinfo'),
     pwEl=document.getElementById('pw'), openBtn=document.getElementById('openBtn'), openErr=document.getElementById('openErr'),
-    editStep=document.getElementById('editStep'), dealerInfo=document.getElementById('dealerInfo'), qlist=document.getElementById('qlist'),
+    editStep=document.getElementById('editStep'), dealerInfo=document.getElementById('dealerInfo'), sizeInfo=document.getElementById('sizeInfo'), qlist=document.getElementById('qlist'),
     qDate=document.getElementById('qDate'), qTitle=document.getElementById('qTitle'), qFile=document.getElementById('qFile'),
     fileInfo=document.getElementById('fileInfo'), qNote=document.getElementById('qNote'),
     lineBody=document.getElementById('lineBody'), addLineBtn=document.getElementById('addLineBtn'), addQuoteBtn=document.getElementById('addQuoteBtn'),
-    fileStep=document.getElementById('fileStep'), fileList=document.getElementById('fileList'),
     genStep=document.getElementById('genStep'),
     pw1new=document.getElementById('pw1new'), pw2new=document.getElementById('pw2new'), pwHint=document.getElementById('pwHint'), mergeInfo=document.getElementById('mergeInfo'),
     genBtn=document.getElementById('genBtn'), doneEl=document.getElementById('done');
@@ -213,10 +203,11 @@ openBtn.onclick=async function(){
     PASS=pwEl.value;
     if(!Array.isArray(PAYLOAD.quotes)) PAYLOAD.quotes=[];
     if(!Array.isArray(PAYLOAD.notices)) PAYLOAD.notices=[];
+    sessionAdded=[]; sessionDeleted=[];
     dealerInfo.textContent='会社名：'+(PAYLOAD.dealer||'（不明）')+' ／ カタログ '+(PAYLOAD.catalog||[]).length+' 件 ／ 既存の見積もり '+PAYLOAD.quotes.length+' 件';
     drawQuotes(); addLineRow();
-    editStep.style.display=''; fileStep.style.display=''; genStep.style.display='';
-    drawFileList();
+    editStep.style.display=''; genStep.style.display='';
+    updateSizeInfo();
     openBtn.textContent='開く（読み込み済み）';
   }catch(e){
     openErr.textContent='合言葉が違うか、ファイルが壊れています。もう一度確認してください。';
@@ -236,9 +227,10 @@ function drawQuotes(){
   if(!list.length){ var e=document.createElement('div'); e.className='empty'; e.textContent='見積もりはまだありません'; qlist.appendChild(e); return; }
   list.forEach(function(q){
     var isNew=sessionAdded.some(function(x){ return x.id===q.id; });
+    var kb=q.fileData ? Math.round(q.fileData.length*0.75/1024) : 0;
     var it=document.createElement('div');
     it.className='qitem'+(isNew?' pending':'');
-    it.innerHTML='<div class="qh"><span>'+fmtDate(q.date)+(isNew?'<span class="pillnew">今回追加</span>':'')+'</span><span>'+esc(q.fileName||'')+'</span></div>'+
+    it.innerHTML='<div class="qh"><span>'+fmtDate(q.date)+(isNew?'<span class="pillnew">今回追加</span>':'')+'</span><span>'+esc(q.fileName||'')+(kb?'（'+kb.toLocaleString('ja-JP')+'KB）':'')+'</span></div>'+
       '<div class="qt">'+esc(q.title||'')+'</div>'+
       (q.note?'<div class="qb">'+esc(q.note)+'</div>':'')+
       (q.lines&&q.lines.length?'<div class="muted" style="margin-top:4px">明細 '+q.lines.length+' 行</div>':'');
@@ -246,13 +238,9 @@ function drawQuotes(){
     del.className='danger'; del.textContent='削除'; del.style.marginTop='8px';
     del.onclick=function(){
       if(!confirm('この見積もりを削除しますか？')) return;
-      if(isNew){
-        sessionAdded=sessionAdded.filter(function(x){ return x.id!==q.id; });
-        pendingFiles=pendingFiles.filter(function(x){ return x.quoteId!==q.id; });
-      } else {
-        sessionDeleted.push(q.id);
-      }
-      drawQuotes(); drawFileList();
+      if(isNew){ sessionAdded=sessionAdded.filter(function(x){ return x.id!==q.id; }); }
+      else { sessionDeleted.push(q.id); }
+      drawQuotes(); updateSizeInfo();
     };
     it.appendChild(del);
     qlist.appendChild(it);
@@ -263,7 +251,7 @@ qFile.onchange=function(){
   var f=qFile.files[0];
   if(!f){ fileInfo.textContent=''; return; }
   var mb=f.size/1048576;
-  fileInfo.innerHTML='選択中: '+esc(f.name)+'（'+mb.toFixed(2)+'MB）'+(mb>5?'<div class="warnbox">⚠ 5MBを超えています。可能なら軽量化（画像解像度を下げる等）してください。</div>':'');
+  fileInfo.innerHTML='選択中: '+esc(f.name)+'（'+mb.toFixed(2)+'MB）'+(mb>5?'<div class="warnbox">⚠ 5MBを超えています。index.html 全体が大きくなり、スマホでの読み込みが遅くなる場合があります。可能なら軽量化（画像解像度を下げる、PDFを圧縮する等）してください。</div>':'');
 };
 
 function addLineRow(vals){
@@ -303,46 +291,30 @@ function collectLines(){
   return lines;
 }
 
-addQuoteBtn.onclick=function(){
+addQuoteBtn.onclick=async function(){
   var f=qFile.files[0];
   if(!qTitle.value.trim() && !f){ alert('件名かファイルのどちらかは入れてください。'); return; }
-  var id=uid();
-  var quote={ id:id, date:qDate.value||todayISO(), title:qTitle.value.trim(),
-    note:qNote.value.trim(), fileName:f?f.name:'', fileType:f?(f.type||'application/octet-stream'):'',
-    filePath:'', lines:collectLines() };
-  if(f){
-    var filePath='quotes/'+id+extOf(f.name);
-    quote.filePath=filePath;
-    pendingFiles.push({ filePath:filePath, file:f, quoteId:id });
+  addQuoteBtn.disabled=true; addQuoteBtn.textContent='取り込み中…';
+  try{
+    var fileData=null, fileName='', fileType='';
+    if(f){ fileData=await fileToB64(f); fileName=f.name; fileType=f.type||'application/octet-stream'; }
+    sessionAdded.push({
+      id:uid(), date:qDate.value||todayISO(), title:qTitle.value.trim(),
+      note:qNote.value.trim(), fileName:fileName, fileType:fileType, fileData:fileData,
+      lines:collectLines()
+    });
+    qTitle.value=''; qNote.value=''; qFile.value=''; fileInfo.textContent=''; qDate.value=todayISO();
+    lineBody.innerHTML=''; addLineRow();
+    drawQuotes(); updateSizeInfo();
+  }catch(e){
+    alert('取り込みに失敗しました：'+e.message);
   }
-  sessionAdded.push(quote);
-  qTitle.value=''; qNote.value=''; qFile.value=''; fileInfo.textContent=''; qDate.value=todayISO();
-  lineBody.innerHTML=''; addLineRow();
-  drawQuotes(); drawFileList();
+  addQuoteBtn.disabled=false; addQuoteBtn.textContent='＋ この見積もりを追加';
 };
 
-function drawFileList(){
-  fileList.innerHTML='';
-  if(!pendingFiles.length){
-    fileList.appendChild(Object.assign(document.createElement('div'), { className:'empty', textContent:'今回アップロードが必要な見積書ファイルはありません。' }));
-    return;
-  }
-  pendingFiles.forEach(function(pf){
-    var row=document.createElement('div');
-    row.className='filerow';
-    row.innerHTML='<div><div style="font-weight:600;font-size:13px">'+esc(pf.file.name)+'</div>'+
-      '<div class="muted">アップロード先ファイル名： <code>'+esc(pf.filePath)+'</code></div></div>';
-    var dl=document.createElement('button');
-    dl.className='ghost sm'; dl.textContent='ダウンロード';
-    dl.onclick=function(){
-      var url=URL.createObjectURL(pf.file);
-      var a=document.createElement('a'); a.href=url; a.download=pf.filePath.split('/').pop();
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function(){ URL.revokeObjectURL(url); },4000);
-    };
-    row.appendChild(dl);
-    fileList.appendChild(row);
-  });
+function updateSizeInfo(){
+  var approxKB=Math.round((JSON.stringify(PAYLOAD).length+JSON.stringify(sessionAdded).length)/1024);
+  sizeInfo.textContent='現在のデータ量の目安：約'+approxKB.toLocaleString('ja-JP')+'KB（見積もりファイルが多いほど大きくなり、販売店の読み込みが遅くなります。古い見積もりは上の一覧から削除できます）';
 }
 
 function scorePw(s){

@@ -715,7 +715,12 @@ function openBlobUrl(url, fileName){
   setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
 }
 async function openQuoteFile(q){
-  // 新形式：見積もりファイルは別ファイル（quotes/ 配下）に置き、取得は都度ネットから
+  // 通常形式：見積もりファイルは index.html に暗号化して埋め込まれている（合言葉が無いと読めない）
+  if(q.fileData){
+    openBlobUrl(URL.createObjectURL(quoteFileBlob(q)), q.fileName||('見積書_'+(q.date||'')+'.pdf'));
+    return;
+  }
+  // 旧形式：見積もりファイルが別ファイル（quotes/ 配下）にあった時期の後方互換
   if(q.filePath){
     try{
       var res=await fetch(q.filePath, { cache:'no-store' });
@@ -725,11 +730,6 @@ async function openQuoteFile(q){
     }catch(e){
       alert('見積もりファイルを取得できませんでした。通信状態の良い場所でもう一度お試しください。');
     }
-    return;
-  }
-  // 旧形式：index.html にファイルそのものが埋め込まれている場合（後方互換）
-  if(q.fileData){
-    openBlobUrl(URL.createObjectURL(quoteFileBlob(q)), q.fileName||('見積書_'+(q.date||'')+'.pdf'));
     return;
   }
   alert('ファイルが添付されていません。');

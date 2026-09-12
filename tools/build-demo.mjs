@@ -42,6 +42,30 @@ const better=(a,b)=> a.d>b.d || (a.d===b.d && a.ord>b.ord);
 function insertTop(g,k,rec){ let a=g.get(k); if(!a){g.set(k,[rec]);return;} let p=a.length;
   for(let x=0;x<a.length;x++){ if(better(rec,a[x])){p=x;break;} } if(p>=3)return; a.splice(p,0,rec); if(a.length>3)a.length=3; }
 
+// 見積書ファイル本体のダミー（デモ用）。日本語フォント埋め込みは不要な、最小限の有効なPDFを手組みする。
+function demoPdf(text){
+  const esc=s=>String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  const content=`BT /F1 14 Tf 40 100 Td (${esc(text)}) Tj ET`;
+  const objs=[
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 160] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(content,'utf8')} >>\nstream\n${content}\nendstream`,
+  ];
+  let pdf='%PDF-1.4\n';
+  const offsets=[0];
+  objs.forEach((body,idx)=>{
+    offsets.push(Buffer.byteLength(pdf,'utf8'));
+    pdf+=`${idx+1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xrefStart=Buffer.byteLength(pdf,'utf8');
+  pdf+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;
+  for(let i=1;i<=objs.length;i++) pdf+=`${String(offsets[i]).padStart(10,'0')} 00000 n \n`;
+  pdf+=`trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return Buffer.from(pdf,'utf8');
+}
+
 const csv=readFileSync(join(root,'sample-data.csv'),'utf8');
 const rdr=makeCsvReader(csv);
 const H=(rdr.next()||[]).map(s=>s.trim());
@@ -78,12 +102,11 @@ const notices=[
   { id:'demo-n2', date:'2026-08-25', title:'年末年始の配送スケジュールについて（例）', body:'12/29〜1/3は休業します。年末のご注文はお早めにお願いします。', important:true },
 ];
 
-// 見積もりファイルは index.html に埋め込まず、quotes/ 配下の別ファイルとして置く
-// （複数人が同時に見積もりを追加してもファイルどうしが衝突しないようにするため）。
-// デモ用ファイルは quotes/demo-sample.pdf としてリポジトリに実在させ、filePath で参照する。
+// 見積もりファイルは index.html の中に合言葉で暗号化して埋め込む（公開リポジトリでも中身は読めない）。
 const quotes=[
   { id:'demo-q1', date:'2026-09-08', title:'ガス給湯器一式 御見積り（サンプル）',
-    fileName:'demo-sample.pdf', fileType:'application/pdf', filePath:'quotes/demo-sample.pdf',
+    fileName:'sample-quote.pdf', fileType:'application/pdf',
+    fileData: demoPdf('Sample Quote (DEMO) - RUX-A2016').toString('base64'),
     note:'これはデモ用の見積もりです。「この内容で発注に追加」を押すと発注タブに明細が入ります。',
     lines:[{ nm:'ガス給湯器 20号', kt:'RUX-A2016', mk:'リンナイ', qty:1, unit:'台', tanka:67000 }] },
 ];
