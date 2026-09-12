@@ -292,7 +292,9 @@ function draftTotal(){ return draft.lines.reduce(function(a,l){ var x=lineAmount
 function shell(){
   app.innerHTML='';
   var h=el('<header class="bar"></header>');
-  h.appendChild(el('<div class="ttl">'+esc(DATA.dealer||'発注アプリ')+'</div>'));
+  var ttl=el('<div class="ttl" style="cursor:pointer" title="タップで発注画面に戻ります">'+esc(DATA.dealer||'発注アプリ')+'</div>');
+  ttl.onclick=function(){ TAB='order'; render(); };
+  h.appendChild(ttl);
   var lk=el('<button>ロック</button>'); lk.onclick=lock; h.appendChild(lk);
   app.appendChild(h);
   var body=el('<div id="tabbody"></div>'); app.appendChild(body);
