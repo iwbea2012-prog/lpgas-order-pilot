@@ -118,7 +118,10 @@
       <div class="fld"><label>日付</label><input type="date" id="qDate"></div>
       <div class="fld"><label>件名</label><input type="text" id="qTitle" placeholder="例：ガス給湯器一式 御見積り"></div>
     </div>
-    <div class="fld"><label>物件名（任意）</label><input type="text" id="qProject" placeholder="例：【メーカー】○○様邸　湯沸器"></div>
+    <div class="grid2">
+      <div class="fld"><label>物件名（任意）</label><input type="text" id="qProject" placeholder="例：【メーカー】○○様邸　湯沸器"></div>
+      <div class="fld"><label>見積書No.（空欄なら自動採番）</label><input type="text" id="qNo" placeholder="例：5012436-250902-1"></div>
+    </div>
     <div class="fld"><label>見積書ファイル（PDF・Excelなど・任意）</label><input type="file" id="qFile" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg"></div>
     <div id="fileInfo" class="muted"></div>
     <div class="muted" style="margin-top:2px">下の明細を入力すると、見積書ファイルを添付しなくても<b>当社の見積書ひな型と同じ書式のPDF</b>を自動で作成します（仕入金額など社内専用の情報は一切含みません）。</div>
@@ -213,7 +216,7 @@ var sessionDeleted=[];    // このセッションで削除した「既存」見
 var drop=document.getElementById('drop'), fileInput=document.getElementById('file'), loadinfo=document.getElementById('loadinfo'),
     pwEl=document.getElementById('pw'), openBtn=document.getElementById('openBtn'), openErr=document.getElementById('openErr'),
     editStep=document.getElementById('editStep'), dealerInfo=document.getElementById('dealerInfo'), sizeInfo=document.getElementById('sizeInfo'), qlist=document.getElementById('qlist'),
-    qDate=document.getElementById('qDate'), qTitle=document.getElementById('qTitle'), qProject=document.getElementById('qProject'), qFile=document.getElementById('qFile'),
+    qDate=document.getElementById('qDate'), qTitle=document.getElementById('qTitle'), qProject=document.getElementById('qProject'), qNo=document.getElementById('qNo'), qFile=document.getElementById('qFile'),
     fileInfo=document.getElementById('fileInfo'), qNote=document.getElementById('qNote'),
     pasteArea=document.getElementById('pasteArea'), pasteBtn=document.getElementById('pasteBtn'), pasteInfo=document.getElementById('pasteInfo'),
     lineBody=document.getElementById('lineBody'), addLineBtn=document.getElementById('addLineBtn'), addQuoteBtn=document.getElementById('addQuoteBtn'),
@@ -276,7 +279,7 @@ function drawQuotes(){
     var it=document.createElement('div');
     it.className='qitem'+(isNew?' pending':'');
     it.innerHTML='<div class="qh"><span>'+fmtDate(q.date)+(isNew?'<span class="pillnew">今回追加</span>':'')+'</span><span>'+esc(q.fileName||'')+(kb?'（'+kb.toLocaleString('ja-JP')+'KB）':'')+'</span></div>'+
-      '<div class="qt">'+esc(q.title||'')+'</div>'+
+      '<div class="qt">'+esc(q.title||'')+(q.no?'<span class="muted" style="font-weight:400"> ／ No. '+esc(q.no)+'</span>':'')+'</div>'+
       (q.note?'<div class="qb">'+esc(q.note)+'</div>':'')+
       (q.lines&&q.lines.length?'<div class="muted" style="margin-top:4px">明細 '+q.lines.length+' 行</div>':'');
     var del=document.createElement('button');
@@ -481,14 +484,15 @@ addQuoteBtn.onclick=async function(){
   if(!qTitle.value.trim() && !f && !lines.length){ alert('件名・ファイル・明細のいずれかは入れてください。'); return; }
   addQuoteBtn.disabled=true; addQuoteBtn.textContent='取り込み中…';
   try{
-    var fileData=null, fileName='', fileType='', quoteNoUsed='';
+    var fileData=null, fileName='', fileType='';
+    var quoteNoUsed=qNo.value.trim();
     if(f){
       // 手動でファイルを添付した場合はそちらを優先（従来どおり）
       fileData=await fileToB64(f); fileName=f.name; fileType=f.type||'application/octet-stream';
     } else if(lines.length){
       // ファイル未添付・明細ありの場合は、当社ひな型と同じ書式の見積書PDFを自動生成する
       addQuoteBtn.textContent='見積書PDFを作成中…';
-      quoteNoUsed=quoteNo(qDate.value);
+      if(!quoteNoUsed) quoteNoUsed=quoteNo(qDate.value);
       var q={ date:qDate.value||todayISO(), no:quoteNoUsed, project:qProject.value.trim(), note:qNote.value.trim(), lines:lines };
       var pdf=await buildQuotePdf(q);
       if(pdf){ fileData=pdf.fileData; fileName=pdf.fileName; fileType=pdf.fileType; }
@@ -499,7 +503,7 @@ addQuoteBtn.onclick=async function(){
       note:qNote.value.trim(), fileName:fileName, fileType:fileType, fileData:fileData,
       lines:lines
     });
-    qTitle.value=''; qProject.value=''; qNote.value=''; qFile.value=''; fileInfo.textContent=''; qDate.value=todayISO();
+    qTitle.value=''; qProject.value=''; qNo.value=''; qNote.value=''; qFile.value=''; fileInfo.textContent=''; qDate.value=todayISO();
     pasteArea.value=''; pasteInfo.textContent='';
     lineBody.innerHTML=''; addLineRow();
     drawQuotes(); updateSizeInfo();

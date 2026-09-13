@@ -417,7 +417,7 @@ function lineCard(l,i){
   r1.appendChild(mk); r1.appendChild(nm); c.appendChild(r1);
   var r2=el('<div class="grid2" style="margin-top:8px"></div>');
   var kt=el('<div><label class="f">型式</label><input type="text"></div>'); bind(kt.querySelector('input'),'kt');
-  var gas=el('<div><label class="f">ガス種</label><select><option value="">未選択</option><option>LPガス</option><option>13A</option><option>都市ガス</option><option>その他</option></select></div>');
+  var gas=el('<div><label class="f">ガス種</label><select><option value="">未選択</option><option>LPガス</option><option>都市ガス</option></select></div>');
   gas.querySelector('select').value=l.gas||'';
   gas.querySelector('select').onchange=function(){ l.gas=this.value; };
   r2.appendChild(kt); r2.appendChild(gas); c.appendChild(r2);
