@@ -357,11 +357,16 @@ function parsePastedLines(text){
     var cols=row.split('\t');
     var nm=(cols[0]||'').trim();
     if(!nm) return; // 品名が空の行（小計・合計行など）はスキップ
-    var teika=parseNum(cols[1]);
-    var qty=parseNum(cols[2]);
-    // cols[3] = 掛率（無視）
-    var tanka=parseNum(cols[4]);
-    // cols[5] = 金額（無視・数量×単価で再計算）
+    // 「品名及び仕様」は結合セルになっていることが多く、コピーすると結合分の
+    // 空セルが後ろに付いてくる（数が一定しない）。そこで品名より後ろの列は
+    // 「値が入っているセルだけ」を順番に 定価→数量→掛率→単価→金額 として扱う
+    // （掛率・金額は取り込まず、金額は数量×単価で再計算する）。
+    var rest=cols.slice(1).map(function(s){ return (s||'').trim(); }).filter(function(s){ return s!==''; });
+    var teika=parseNum(rest[0]);
+    var qty=parseNum(rest[1]);
+    // rest[2] = 掛率（無視）
+    var tanka=parseNum(rest[3]);
+    // rest[4] = 金額（無視・数量×単価で再計算）
     out.push({ nm:nm, kt:'', mk:'', qty:qty, unit:'台', teika:teika, tanka:tanka });
   });
   return out;
