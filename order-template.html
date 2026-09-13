@@ -236,9 +236,9 @@ function indexData(){
     c._s=normKana([c.nm,c.kt,c.mk].join(' '));
     return c;
   });
-  if(unreadNoticeCount()>0) TAB='notice';
-  else if(unreadQuoteCount()>0) TAB='quote';
-  else if(unreadReplyCount()>0) TAB='history';
+  // ページ更新・再読み込み時は毎回「発注」タブから開始する（未読があってもタブは自動で切り替えない。
+  // 未読件数はタブのバッジで確認できる）。
+  TAB='order';
 }
 
 /* ---------- stock ---------- */
