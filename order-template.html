@@ -495,7 +495,6 @@ function orderDocHtml(o){
       rowsHtml+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
     }
   }
-  var total=lines.reduce(function(a,l){ var x=lineAmount(l); return a+(x||0); },0);
   return '<div class="sheetdoc">'+
     '<h3>注文書</h3>'+
     '<div class="hd">'+
@@ -505,7 +504,6 @@ function orderDocHtml(o){
     '<table><colgroup><col style="width:12%"><col style="width:10%"><col style="width:15%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"></colgroup>'+
     '<thead><tr><th>注文番号</th><th>メーカー</th><th>品名</th><th>型式（ガス種）</th><th>数量</th><th>定価</th><th>単価</th><th>金額</th><th>備考・現場名</th></tr></thead>'+
     '<tbody>'+rowsHtml+'</tbody></table>'+
-    '<div class="tot">合計金額：'+money(total)+' 円</div>'+
     '<h3 style="margin-top:22px">注文請書</h3>'+
     '<div class="ack">'+
       '<div class="ackrow"><span>'+esc(DATA.dealer||'')+'　御中</span><span>　　　　年　　　月　　　日</span></div>'+
