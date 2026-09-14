@@ -181,6 +181,9 @@ var tabbar=document.getElementById('tabbar');
 var printArea=document.getElementById('printArea');
 var LS={ key:'lop.key.v1', contact:'lop.contact', stock:'lop.stock.v1', orders:'lop.orders.v1' };
 var BLOB=null, DATA=null, CAT=[], TAB='order';
+// hub.html（業務担当者向けの入口ページ）経由で開いたときだけ、
+// ヘッダーに「一覧に戻る」ボタンを出す（販売店には見せない）。
+var FROM_HUB=(function(){ try{ return new URLSearchParams(location.search).get('from')==='hub'; }catch(e){ return false; } })();
 var draft=null;
 
 /* ---------- helpers ---------- */
@@ -295,6 +298,11 @@ function shell(){
   var ttl=el('<div class="ttl" style="cursor:pointer" title="タップで発注画面に戻ります">'+esc(DATA.dealer||'発注アプリ')+'</div>');
   ttl.onclick=function(){ TAB='order'; render(); };
   h.appendChild(ttl);
+  if(FROM_HUB){
+    var hb=el('<button title="hub.htmlに戻ります">← 一覧</button>');
+    hb.onclick=function(){ location.href='hub.html'; };
+    h.appendChild(hb);
+  }
   var lk=el('<button>ロック</button>'); lk.onclick=lock; h.appendChild(lk);
   app.appendChild(h);
   var body=el('<div id="tabbody"></div>'); app.appendChild(body);
@@ -1177,11 +1185,13 @@ function viewUnlock(msg){
       '<label class="ck"><input type="checkbox" class="ck-show"> 合言葉を表示する</label>'+
       '<label class="ck"><input type="checkbox" class="ck-remember" checked> この端末におぼえておく</label>'+
       '<button type="submit" class="btn">ひらく</button>'+
+      (FROM_HUB?'<button type="button" class="btn ghost" style="margin-top:8px">← 一覧に戻る</button>':'')+
       '<div class="err">'+(msg?esc(msg):'')+'</div>'+
     '</form>');
   var pw=f.querySelector('.pwfield'), ckS=f.querySelector('.ck-show'), ck=f.querySelector('.ck-remember');
   ckS.onchange=function(){ pw.classList.toggle('show', ckS.checked); };
   var btn=f.querySelector('button'), err=f.querySelector('.err');
+  if(FROM_HUB){ f.querySelector('.btn.ghost').onclick=function(){ location.href='hub.html'; }; }
   f.onsubmit=async function(e){
     e.preventDefault(); btn.disabled=true; btn.textContent='確認中…'; err.textContent='';
     try{ await doUnlock(pw.value, ck.checked); render(); }
