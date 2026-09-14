@@ -776,47 +776,93 @@ function renderQuote(body){
   if(changed) lsSet('lop.quoteRead', read);
 }
 
-/* ================= 期間 ================= */
-var _periodBounds=null;
-function periodBounds(){
-  if(_periodBounds) return _periodBounds;
-  var min=null, max=null;
-  CAT.forEach(function(c){ (c.tx||[]).forEach(function(x){ if(!min||x.d<min) min=x.d; if(!max||x.d>max) max=x.d; }); });
-  _periodBounds={ min:min||DATA.builtAt, max:max||DATA.builtAt };
-  return _periodBounds;
+/* ================= 購入履歴（年→月） ================= */
+function periodYearsData(){
+  // { '2026': { '01': 件数, '02': 件数, ... }, '2025': {...} }
+  var map={};
+  CAT.forEach(function(c){
+    (c.tx||[]).forEach(function(x){
+      var d=x.d; if(!d||d.length<7) return;
+      var y=d.slice(0,4), m=d.slice(5,7);
+      if(!map[y]) map[y]={};
+      map[y][m]=(map[y][m]||0)+1;
+    });
+  });
+  return map;
+}
+function periodDefaultMonth(monthMap){
+  if(!monthMap) return '01';
+  var months=Object.keys(monthMap).sort();
+  return months.length ? months[months.length-1] : '01';
 }
 function renderPeriod(body){
-  var b=periodBounds();
-  var saved=lsGet('lop.periodRange', null);
-  var start=(saved&&saved.start&&saved.start>=b.min&&saved.start<=b.max)?saved.start:b.min;
-  var end=(saved&&saved.end&&saved.end>=b.min&&saved.end<=b.max)?saved.end:b.max;
-
-  var card=el('<div class="card"><h2>期間で絞り込む</h2><div class="muted">開始日・終了日を指定すると、その間に買った商品を全件一覧表示します（カタログの取り込み期間内のみ）。</div></div>');
-  var g=el('<div class="grid2" style="margin-top:10px"></div>');
-  var fs=el('<div><label class="f">開始日</label><input type="date"></div>');
-  var fe=el('<div><label class="f">終了日</label><input type="date"></div>');
-  var si=fs.querySelector('input'), ei=fe.querySelector('input');
-  si.min=b.min; si.max=b.max; si.value=start;
-  ei.min=b.min; ei.max=b.max; ei.value=end;
-  g.appendChild(fs); g.appendChild(fe);
-  card.appendChild(g);
+  var years=periodYearsData();
+  var yearKeys=Object.keys(years).sort(function(a,b){ return b<a?-1:b>a?1:0; }); // 新しい年が先
+  var card=el('<div class="card"><h2>購入履歴</h2><div class="muted">年→月を選ぶと、その月に買った商品を一覧表示します（カタログの取り込み期間内のみ）。</div></div>');
   body.appendChild(card);
+  if(!yearKeys.length){ body.appendChild(el('<div class="empty">購入履歴がありません</div>')); return; }
 
-  var summary=el('<div class="muted" style="margin:2px 2px 10px"></div>');
+  var saved=lsGet('lop.periodYM', null);
+  var curY=(saved&&yearKeys.indexOf(saved.y)>=0)?saved.y:yearKeys[0];
+  var curM=(saved&&saved.y===curY&&saved.m)?saved.m:periodDefaultMonth(years[curY]);
+
+  var yearRow=el('<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>');
+  var monthRow=el('<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"></div>');
+  card.appendChild(yearRow); card.appendChild(monthRow);
+
+  var summary=el('<div class="muted" style="margin:12px 2px 10px"></div>');
   var list=el('<div class="list"></div>');
   body.appendChild(summary);
   body.appendChild(list);
 
-  function draw(){
-    var s=si.value||b.min, e=ei.value||b.max;
-    if(s>e){ var t=s; s=e; e=t; si.value=s; ei.value=e; }
-    lsSet('lop.periodRange', { start:s, end:e });
+  function yearBtnCss(on){
+    return 'padding:8px 14px;border-radius:10px;border:1.5px solid '+(on?'var(--accent)':'var(--line)')+
+      ';background:'+(on?'var(--accent)':'#fff')+';color:'+(on?'#fff':'var(--ink)')+
+      ';font-weight:700;font-size:14px;cursor:pointer';
+  }
+  function monthBtnCss(on, has){
+    return 'padding:7px 10px;border-radius:8px;border:1.5px solid '+(on?'var(--accent)':'var(--line)')+
+      ';background:'+(on?'var(--accent)':'#fff')+';color:'+(on?'#fff':(has?'var(--ink)':'var(--muted)'))+
+      ';font-weight:600;font-size:13px;cursor:pointer;min-width:44px';
+  }
+  function drawYearTabs(){
+    yearRow.innerHTML='';
+    yearKeys.forEach(function(y){
+      var btn=el('<button type="button">'+esc(y)+'年</button>');
+      btn.style.cssText=yearBtnCss(y===curY);
+      btn.onclick=function(){
+        curY=y; curM=periodDefaultMonth(years[curY]);
+        lsSet('lop.periodYM',{y:curY,m:curM});
+        drawYearTabs(); drawMonthTabs(); drawList();
+      };
+      yearRow.appendChild(btn);
+    });
+  }
+  function drawMonthTabs(){
+    monthRow.innerHTML='';
+    for(var m=1;m<=12;m++){
+      var mm=String(m).padStart(2,'0');
+      var has=!!(years[curY] && years[curY][mm]);
+      (function(mmVal){
+        var btn=el('<button type="button">'+m+'月</button>');
+        btn.style.cssText=monthBtnCss(mmVal===curM, has);
+        btn.onclick=function(){
+          curM=mmVal;
+          lsSet('lop.periodYM',{y:curY,m:curM});
+          drawMonthTabs(); drawList();
+        };
+        monthRow.appendChild(btn);
+      })(mm);
+    }
+  }
+  function drawList(){
+    var prefix=curY+'-'+curM;
     var rows=[];
     CAT.forEach(function(c){
-      (c.tx||[]).forEach(function(x){ if(x.d>=s && x.d<=e) rows.push({ c:c, x:x }); });
+      (c.tx||[]).forEach(function(x){ if((x.d||'').indexOf(prefix)===0) rows.push({ c:c, x:x }); });
     });
     rows.sort(function(a,c2){ return a.x.d<c2.x.d?1:a.x.d>c2.x.d?-1:0; });
-    summary.textContent=(rows.length?rows.length.toLocaleString('ja-JP')+'件':'該当する購入履歴がありません')+'　（'+fmtDate(s)+' 〜 '+fmtDate(e)+'）';
+    summary.textContent=(rows.length?rows.length.toLocaleString('ja-JP')+'件':'この月の購入履歴はありません')+'　（'+curY+'年'+Number(curM)+'月）';
     list.innerHTML='';
     rows.slice(0,500).forEach(function(row){
       var c=row.c, x=row.x;
@@ -826,10 +872,9 @@ function renderPeriod(body){
       it.onclick=function(){ openPeriodDetail(c, x); };
       list.appendChild(it);
     });
-    if(rows.length>500) list.appendChild(el('<div class="empty">上位500件（新しい順）を表示。期間を狭めると絞れます。</div>'));
+    if(rows.length>500) list.appendChild(el('<div class="empty">上位500件（新しい順）を表示しています。</div>'));
   }
-  si.onchange=draw; ei.onchange=draw;
-  draw();
+  drawYearTabs(); drawMonthTabs(); drawList();
 }
 function openPeriodDetail(c, x){
   var ov=el('<div class="overlay"></div>');
