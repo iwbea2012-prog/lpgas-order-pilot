@@ -683,6 +683,11 @@ function renderNotice(body){
       it.appendChild(el('<div class="ndate">'+fmtDate(n.date)+(n.important?'<span class="pill important">重要</span>':'')+'</div>'));
       it.appendChild(el('<div class="ntitle">'+esc(n.title||'')+'</div>'));
       var b=el('<div class="nbody"></div>'); b.textContent=n.body||''; it.appendChild(b);
+      if(n.fileData){
+        var openBtn=el('<button class="btn ghost sm" type="button" style="margin-top:9px">ファイルを開く'+(n.fileName?'（'+esc(n.fileName)+'）':'')+'</button>');
+        openBtn.onclick=function(){ openNoticeFile(n); };
+        it.appendChild(openBtn);
+      }
       body.appendChild(it);
     });
   }
@@ -713,6 +718,10 @@ function openBlobUrl(url, fileName){
     document.body.appendChild(a); a.click(); a.remove();
   }
   setTimeout(function(){ URL.revokeObjectURL(url); }, 15000);
+}
+function openNoticeFile(n){
+  if(!n.fileData){ alert('ファイルが添付されていません。'); return; }
+  openBlobUrl(URL.createObjectURL(quoteFileBlob(n)), n.fileName||'お知らせ添付ファイル');
 }
 async function openQuoteFile(q){
   // 通常形式：見積もりファイルは index.html に暗号化して埋め込まれている（合言葉が無いと読めない）

@@ -52,6 +52,7 @@
 <div class="wrap">
   <h1>お知らせ更新ツール</h1>
   <p class="lead">今ある <code>index.html</code> を読み込んで、<b>お知らせだけ</b>を追加・編集・削除できます。CSVは不要です。カタログ・在庫データ・見積もりには触れません。<br>
+  お知らせにPDFファイルを添付することもできます（<b>index.html の中に合言葉で暗号化して埋め込む</b>ので、リポジトリは公開でも中身は読めません）。<br>
   中身の処理はこのブラウザの中だけで行います。書き出す直前だけ、他の人の変更を取りこぼさないよう公開中の index.html を確認しに行きます。</p>
 
   <div class="step">
@@ -75,6 +76,8 @@
     <div class="fld"><label>日付</label><input type="date" id="nDate"></div>
     <div class="fld"><label>タイトル</label><input type="text" id="nTitle" placeholder="例：年末年始の配送について"></div>
     <div class="fld"><label>本文</label><textarea id="nBody" placeholder="お知らせの内容"></textarea></div>
+    <div class="fld"><label>添付ファイル（PDFなど・任意）</label><input type="file" id="nFile" accept=".pdf,.png,.jpg,.jpeg"></div>
+    <div id="nFileInfo" class="muted"></div>
     <div class="row"><label class="ck"><input type="checkbox" id="nImportant"> 重要（赤く強調表示）</label></div>
     <button class="ghost" id="addBtn" style="margin-top:10px">＋ このお知らせを追加</button>
   </div>
@@ -134,6 +137,14 @@ function extractPayloadBlob(htmlText){
   if(!m) return null;
   try{ var b=JSON.parse(m[1]); return (b&&b.ct&&b.salt&&b.iv)?b:null; }catch(e){ return null; }
 }
+function fileToB64(file){
+  return new Promise(function(resolve,reject){
+    var r=new FileReader();
+    r.onload=function(){ resolve(r.result.split(',')[1]); };
+    r.onerror=reject;
+    r.readAsDataURL(file);
+  });
+}
 
 var HTML_TEXT=null, PAYLOAD=null, PASS=null;
 var sessionAdded=[];    // このセッションで追加したお知らせ
@@ -143,6 +154,7 @@ var drop=document.getElementById('drop'), fileInput=document.getElementById('fil
     pwEl=document.getElementById('pw'), openBtn=document.getElementById('openBtn'), openErr=document.getElementById('openErr'),
     editStep=document.getElementById('editStep'), dealerInfo=document.getElementById('dealerInfo'), nlist=document.getElementById('nlist'),
     nDate=document.getElementById('nDate'), nTitle=document.getElementById('nTitle'), nBody=document.getElementById('nBody'), nImportant=document.getElementById('nImportant'),
+    nFile=document.getElementById('nFile'), nFileInfo=document.getElementById('nFileInfo'),
     addBtn=document.getElementById('addBtn'), genStep=document.getElementById('genStep'),
     pw1new=document.getElementById('pw1new'), pw2new=document.getElementById('pw2new'), pwHint=document.getElementById('pwHint'), mergeInfo=document.getElementById('mergeInfo'),
     genBtn=document.getElementById('genBtn'), doneEl=document.getElementById('done');
@@ -200,7 +212,8 @@ function drawNotices(){
     var isNew=sessionAdded.some(function(x){ return x.id===n.id; });
     var it=document.createElement('div');
     it.className='nitem'+(n.important?' important':'');
-    it.innerHTML='<div class="nh"><span>'+fmtDate(n.date)+(n.important?' <span class="pill">重要</span>':'')+(isNew?' <span class="pill" style="background:#dff3e6;color:var(--ok)">今回追加</span>':'')+'</span></div>'+
+    var kb=n.fileData ? Math.round(n.fileData.length*0.75/1024) : 0;
+    it.innerHTML='<div class="nh"><span>'+fmtDate(n.date)+(n.important?' <span class="pill">重要</span>':'')+(isNew?' <span class="pill" style="background:#dff3e6;color:var(--ok)">今回追加</span>':'')+'</span>'+(n.fileName?'<span>'+esc(n.fileName)+(kb?'（'+kb.toLocaleString('ja-JP')+'KB）':'')+'</span>':'')+'</div>'+
       '<div class="nt">'+esc(n.title||'')+'</div><div class="nb">'+esc(n.body||'')+'</div>';
     var del=document.createElement('button');
     del.className='danger'; del.textContent='削除'; del.style.marginTop='8px';
@@ -215,11 +228,28 @@ function drawNotices(){
   });
 }
 
-addBtn.onclick=function(){
+nFile.onchange=function(){
+  var f=nFile.files[0];
+  if(!f){ nFileInfo.textContent=''; return; }
+  var mb=f.size/1048576;
+  nFileInfo.innerHTML='選択中: '+esc(f.name)+'（'+mb.toFixed(2)+'MB）'+(mb>5?'<div class="warnbox">⚠ 5MBを超えています。index.html 全体が大きくなり、スマホでの読み込みが遅くなる場合があります。</div>':'');
+};
+
+addBtn.onclick=async function(){
   if(!nTitle.value.trim() && !nBody.value.trim()){ alert('タイトルか本文のどちらかは入れてください。'); return; }
-  sessionAdded.push({ id:uid(), date:nDate.value||todayISO(), title:nTitle.value.trim(), body:nBody.value.trim(), important:!!nImportant.checked });
-  nTitle.value=''; nBody.value=''; nImportant.checked=false; nDate.value=todayISO();
-  drawNotices();
+  var f=nFile.files[0];
+  addBtn.disabled=true; addBtn.textContent='取り込み中…';
+  try{
+    var fileData=null, fileName='', fileType='';
+    if(f){ fileData=await fileToB64(f); fileName=f.name; fileType=f.type||'application/octet-stream'; }
+    sessionAdded.push({ id:uid(), date:nDate.value||todayISO(), title:nTitle.value.trim(), body:nBody.value.trim(),
+      important:!!nImportant.checked, fileName:fileName, fileType:fileType, fileData:fileData });
+    nTitle.value=''; nBody.value=''; nImportant.checked=false; nDate.value=todayISO(); nFile.value=''; nFileInfo.textContent='';
+    drawNotices();
+  }catch(e){
+    alert('取り込みに失敗しました：'+(e&&e.message||e));
+  }
+  addBtn.disabled=false; addBtn.textContent='＋ このお知らせを追加';
 };
 
 function scorePw(s){
