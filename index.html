@@ -299,9 +299,9 @@ function shell(){
   ttl.onclick=function(){ TAB='order'; render(); };
   h.appendChild(ttl);
   if(FROM_HUB){
-    var hb=el('<button title="hub.htmlに戻ります">← 一覧</button>');
-    hb.onclick=function(){ location.href='hub.html'; };
-    h.appendChild(hb);
+    var hubBtn=el('<button title="hub.htmlに戻ります">← 一覧</button>');
+    hubBtn.onclick=function(){ location.href='hub.html'; };
+    h.appendChild(hubBtn);
   }
   var lk=el('<button>ロック</button>'); lk.onclick=lock; h.appendChild(lk);
   app.appendChild(h);
